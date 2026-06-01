@@ -15,6 +15,7 @@
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -33,6 +34,7 @@ import {
   InsetGroup,
   InsetRow,
   LargeTitleHeader,
+  SearchClearButton,
   useGroupedColors,
 } from "@/components/ui/ios";
 
@@ -218,7 +220,9 @@ export function DocLibraryScreen({ themeName, density, offline, onDocPress, rese
           <View
             style={{
               flex: 1,
-              height: 38,
+              // A touch taller on Android — the native text baseline sits
+              // higher there, so 38 felt cramped; iOS keeps the tighter figure.
+              height: Platform.OS === "android" ? 46 : 38,
               borderRadius: 10,
               backgroundColor: t.border.subtle,
               flexDirection: "row",
@@ -239,6 +243,9 @@ export function DocLibraryScreen({ themeName, density, offline, onDocPress, rese
               autoCapitalize="none"
               accessibilityLabel="Rechercher un document"
             />
+            {query.length > 0 ? (
+              <SearchClearButton themeName={themeName} onPress={() => setQuery("")} />
+            ) : null}
           </View>
 
           <FilterButton

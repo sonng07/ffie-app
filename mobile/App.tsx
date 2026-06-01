@@ -54,7 +54,7 @@ const density: DensityMode = "comfortable";
 const offline = false;
 
 // v1 prototype flag — keep ON for client preview, OFF for production builds.
-const ENABLE_ROLE_DEBUG = true;
+const ENABLE_ROLE_DEBUG = false;
 
 type AppState =
   | { phase: "onboarding" }

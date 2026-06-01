@@ -15,13 +15,14 @@
 
 import React from "react";
 import {
+  Platform,
   Pressable,
   StyleSheet,
   Text,
   View,
   type ViewStyle,
 } from "react-native";
-import { ChevronRight, type LucideIcon } from "lucide-react-native";
+import { ChevronRight, X, type LucideIcon } from "lucide-react-native";
 import { primitives, semantics, themes, type ThemeName } from "@tokens";
 import { ralewayFamily, displayFamily } from "@/theme/fonts";
 
@@ -331,12 +332,51 @@ export function InsetRow({
   );
 }
 
+// SearchClearButton — the iOS-style "clear" affordance: a small grey filled
+// circle with an X, shown inside a search field only once the user has typed
+// something. Tapping it wipes the query in one go. Render it as the trailing
+// child of the rounded search container and gate it on `query.length > 0`.
+//
+// No animation: it appears/disappears with the text, and an instant toggle
+// reads as more responsive than a fade here. The generous hitSlop keeps the
+// tap target ≥44pt even though the glyph is small (WCAG / iOS HIG touch size).
+export function SearchClearButton({
+  onPress,
+  themeName,
+}: {
+  onPress: () => void;
+  themeName: ThemeName;
+}) {
+  const t = themes[themeName];
+  return (
+    <Pressable
+      onPress={onPress}
+      hitSlop={12}
+      accessibilityRole="button"
+      accessibilityLabel="Effacer la recherche"
+      style={{
+        width: 18,
+        height: 18,
+        borderRadius: 9,
+        alignItems: "center",
+        justifyContent: "center",
+        backgroundColor: t.text.muted,
+        opacity: 0.55,
+      }}
+    >
+      <X size={12} color={t.surface.default} strokeWidth={2.5} />
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
   largeTitleRow: {
     flexDirection: "row",
     alignItems: "flex-end",
     paddingHorizontal: GUTTER,
-    paddingTop: 8,
+    // Android: match the Join FFIE page's title offset (its PAGE_TOP_PADDING =
+    // 24, to line up with the Debug chip). iOS keeps the tighter native value.
+    paddingTop: Platform.OS === "android" ? 24 : 8,
     paddingBottom: 12,
     minHeight: 52,
   },

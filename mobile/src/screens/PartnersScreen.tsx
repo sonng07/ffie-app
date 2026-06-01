@@ -20,7 +20,7 @@
 // production scale, swap to a SectionList grouped by category.
 
 import React, { useMemo, useRef, useState } from "react";
-import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { Platform, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
   ChevronDown,
@@ -42,6 +42,7 @@ import {
   GUTTER,
   InsetRow,
   LargeTitleHeader,
+  SearchClearButton,
   SectionHeader,
   useGroupedColors,
 } from "@/components/ui/ios";
@@ -185,7 +186,9 @@ export function PartnersScreen({
           <View
             style={{
               flex: 1,
-              height: 38,
+              // A touch taller on Android — the native text baseline sits
+              // higher there, so 38 felt cramped; iOS keeps the tighter figure.
+              height: Platform.OS === "android" ? 46 : 38,
               borderRadius: 10,
               backgroundColor: t.border.subtle,
               flexDirection: "row",
@@ -206,6 +209,9 @@ export function PartnersScreen({
               autoCapitalize="none"
               accessibilityLabel="Rechercher un partenaire"
             />
+            {query.length > 0 ? (
+              <SearchClearButton themeName={themeName} onPress={() => setQuery("")} />
+            ) : null}
           </View>
 
           <FilterButton
