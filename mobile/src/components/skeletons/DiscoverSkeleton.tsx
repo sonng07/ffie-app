@@ -72,6 +72,11 @@ export function DiscoverSkeleton({ themeName = "light" }: { themeName?: ThemeNam
         <ScrollView contentContainerStyle={{ paddingBottom: 40 }} scrollEnabled={false}>
           <LargeTitleHeader title="Métiers" themeName={themeName} />
 
+          {/* Métiers / Vidéos / Calculateurs segmented control. */}
+          <View style={{ paddingHorizontal: GUTTER, paddingTop: 6, paddingBottom: 18 }}>
+            <SkeletonBlock width="100%" height={40} radius={primitives.radii.md} themeName={themeName} />
+          </View>
+
           {/* Intro paragraph */}
           <View style={{ paddingHorizontal: GUTTER, paddingTop: 2, rowGap: 6 }}>
             <SkeletonTextLine width="100%" height={14} themeName={themeName} />

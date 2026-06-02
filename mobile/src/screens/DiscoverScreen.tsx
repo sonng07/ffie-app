@@ -3,12 +3,12 @@
 // A segmented control under the large title splits the tab into three segments,
 // mirroring the News / Partners tabs' toggle:
 //   • Métiers      — the careers content (the original Discover screen, below).
-//   • Vidéos       — multimedia content (FFIE-VIDEO-01, 🔵 Phase 1). The player
-//                    and content aren't wired up yet, so this is an honest
-//                    "coming" shell for now — it's in scope, just not built.
+//   • Vidéos       — multimedia content (FFIE-VIDEO-01, 🔵 Phase 1): a clone of
+//                    the FFIE "Vidéos" page — four themed categories that open
+//                    the federation's video pages in the in-app browser.
 //   • Calculateurs — technical calculation tools (FFIE-CALC-01/02, 🟢 Phase 2,
-//                    and member-only). Deferred to a later release: a blank
-//                    placeholder that says so explicitly.
+//                    member-only). The module + the puissance↔intensité tool
+//                    are built (see CalculatorsView); guests get a locked state.
 //
 // The "Métiers" segment (TradesBody) mirrors the client careers page
 // (ffie.fr/les-metiers-de-lelectricite/metiers-et-formations) section-by-section:
@@ -22,7 +22,7 @@
 // imagery is placeholder (see data/trades.ts); links open externally (P6).
 
 import React, { useEffect, useRef, useState } from "react";
-import { ArrowRight, Calculator, ChevronRight, PlayCircle, X, type LucideIcon } from "lucide-react-native";
+import { ArrowRight, ChevronRight, Play, X } from "lucide-react-native";
 import {
   Modal,
   Pressable,
@@ -42,6 +42,8 @@ import { RemoteImage } from "@/components/ui/RemoteImage";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
 import { TrainingDetailScreen } from "./TrainingDetailScreen";
+import { VideoCategoryScreen } from "./VideoCategoryScreen";
+import { CalculatorsView } from "./CalculatorsView";
 import {
   DOMAINS,
   FEATURES,
@@ -53,6 +55,12 @@ import {
   type Feature,
   type Training,
 } from "@/data/trades";
+import {
+  VIDEOS_INTRO,
+  VIDEO_CATEGORIES,
+  youtubeThumb,
+  type VideoCategory,
+} from "@/data/videos";
 
 // The Trades tab is a self-contained native stack (Feed → Formation), exactly
 // like the News tab: tapping a formation card pushes the reader, which gets the
@@ -62,6 +70,7 @@ import {
 type TradesStackParamList = {
   Feed: undefined;
   Formation: { id: string };
+  VideoCategory: { id: string };
 };
 
 const Stack = createNativeStackNavigator<TradesStackParamList>();
@@ -69,9 +78,9 @@ const Stack = createNativeStackNavigator<TradesStackParamList>();
 const GRID_GAP = 14;
 
 // The three segments inside the Trades tab. "trades" is the careers content;
-// "videos" and "calculators" are placeholder shells (see header comment for the
-// phase / scope of each). A segmented control at the top toggles between them,
-// like the News and Partners tabs.
+// "videos" clones the FFIE videos page; "calculators" hosts the member-only
+// calculation module (see CalculatorsView). A segmented control at the top
+// toggles between them, like the News and Partners tabs.
 type TradesTab = "trades" | "videos" | "calculators";
 
 // Large-title text per segment (the header re-titles like the News tab does).
@@ -122,6 +131,7 @@ export function DiscoverScreen({
             <DiscoverFeed
               themeName={themeName}
               onTrainingPress={(id) => navigation.navigate("Formation", { id })}
+              onOpenVideo={(id) => navigation.navigate("VideoCategory", { id })}
             />
           )}
         </Stack.Screen>
@@ -135,6 +145,16 @@ export function DiscoverScreen({
               // Prev/next replaces the current formation: back (button or swipe)
               // still returns to the grid and the reader remounts at the top.
               onNavigateId={(id) => navigation.replace("Formation", { id })}
+            />
+          )}
+        </Stack.Screen>
+
+        <Stack.Screen name="VideoCategory">
+          {({ navigation, route }) => (
+            <VideoCategoryRoute
+              id={route.params.id}
+              themeName={themeName}
+              onBack={() => navigation.goBack()}
             />
           )}
         </Stack.Screen>
@@ -181,6 +201,27 @@ function FormationRoute({
   );
 }
 
+// VideoCategoryRoute — resolves the route's category id into the video reader.
+// An unknown id just pops back to the grid.
+function VideoCategoryRoute({
+  id,
+  themeName,
+  onBack,
+}: {
+  id: string;
+  themeName: ThemeName;
+  onBack: () => void;
+}) {
+  const category = VIDEO_CATEGORIES.find((cat) => cat.id === id) ?? null;
+
+  useEffect(() => {
+    if (!category) onBack();
+  }, [category, onBack]);
+  if (!category) return null;
+
+  return <VideoCategoryScreen category={category} themeName={themeName} onBack={onBack} />;
+}
+
 // DiscoverFeed — the Trades tab feed itself: the segmented control (Métiers /
 // Vidéos / Calculateurs) and, on the Métiers segment, the careers content. Owns
 // the active-segment state; stays mounted beneath a pushed formation reader
@@ -188,14 +229,16 @@ function FormationRoute({
 function DiscoverFeed({
   themeName = "light",
   onTrainingPress,
+  onOpenVideo,
 }: {
   themeName?: ThemeName;
   onTrainingPress?: (id: string) => void;
+  onOpenVideo?: (id: string) => void;
 }) {
   const c = useGroupedColors(themeName);
 
-  // Active segment. Switching to videos/calculators reveals a "coming" shell
-  // (neither feature is built yet — see ComingSoonView).
+  // Active segment. Métiers is the default; Vidéos and Calculateurs swap in
+  // their own bodies (VideosView / CalculatorsView).
   const [tab, setTab] = useState<TradesTab>("trades");
 
   // Switching segment starts fresh at the top, matching News / Partners.
@@ -216,7 +259,7 @@ function DiscoverFeed({
         {/* Segment toggle. Sits under the large title like an iOS segmented
             control; Vidéos / Calculateurs reveal a "coming" shell (neither
             feature is built yet). */}
-        <View style={{ paddingHorizontal: GUTTER, paddingTop: 6, paddingBottom: 4 }}>
+        <View style={{ paddingHorizontal: GUTTER, paddingTop: 6, paddingBottom: 18 }}>
           <SegmentedControl
             themeName={themeName}
             value={tab}
@@ -230,23 +273,12 @@ function DiscoverFeed({
         </View>
 
         {tab === "videos" ? (
-          // FFIE-VIDEO-01 (🔵 Phase 1): in scope, player/content not wired yet.
-          <ComingSoonView
-            themeName={themeName}
-            icon={PlayCircle}
-            title="Vidéos bientôt disponibles"
-            body="Le lecteur vidéo intégré et les contenus multimédias de la fédération arriveront ici — toujours avec sous-titres."
-            badge="Phase 1 · en cours"
-          />
+          // FFIE-VIDEO-01 (🔵 Phase 1) — clone of the FFIE "Vidéos" page.
+          <VideosView themeName={themeName} onOpenCategory={onOpenVideo} />
         ) : tab === "calculators" ? (
-          // FFIE-CALC-01/02 (🟢 Phase 2, réservé aux adhérents): deferred.
-          <ComingSoonView
-            themeName={themeName}
-            icon={Calculator}
-            title="Calculateurs techniques"
-            body="Les outils de calcul métier (puissance, dimensionnement, normes) seront réservés aux adhérents dans une prochaine version."
-            badge="Phase 2 · prochaine version"
-          />
+          // FFIE-CALC-01/02 (🟢 Phase 2, réservé aux adhérents): the working
+          // module — member-gated, with the puissance↔intensité tool live.
+          <CalculatorsView themeName={themeName} />
         ) : (
           <TradesBody themeName={themeName} onTrainingPress={onTrainingPress} />
         )}
@@ -360,95 +392,131 @@ function TradesBody({
 }
 
 // ---------------------------------------------------------------------------
-// ComingSoonView — the blank "coming" shell shared by the Vidéos and
-// Calculateurs segments. Centered icon in a tinted circle, a title, an honest
-// one-line explanation, and a phase badge that tells the user exactly when to
-// expect it. No motion — purely a static empty state.
+// VideosView — the "Vidéos" segment: a clone of the FFIE "Vidéos" page. An
+// intro line, a 2-up grid of themed video categories (each pushing an in-app
+// category reader that plays the films), and a button to the federation's
+// YouTube channel. Data lives in data/videos.ts.
 // ---------------------------------------------------------------------------
-function ComingSoonView({
+function VideosView({
   themeName,
-  icon: Icon,
-  title,
-  body,
-  badge,
+  onOpenCategory,
 }: {
   themeName: ThemeName;
-  icon: LucideIcon;
-  title: string;
-  body: string;
-  badge: string;
+  onOpenCategory?: (id: string) => void;
 }) {
   const t = themes[themeName];
+  const { width: screenW } = useWindowDimensions();
+  const colW = (screenW - GUTTER * 2 - GRID_GAP) / 2;
+
   return (
-    <View style={{ paddingHorizontal: GUTTER, paddingTop: 72, alignItems: "center" }}>
-      <View
-        style={{
-          width: 72,
-          height: 72,
-          borderRadius: 36,
-          backgroundColor: t.surface.subtle,
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        <Icon size={32} color={t.brand.accent} strokeWidth={1.75} />
+    <>
+      <View style={{ paddingHorizontal: GUTTER, paddingTop: 2 }}>
+        <Text style={{ color: t.text.muted, fontSize: 15, lineHeight: 22 }}>{VIDEOS_INTRO}</Text>
       </View>
 
-      <Text
-        accessibilityRole="header"
+      <View
         style={{
-          color: t.text.body,
-          fontSize: 21,
-          lineHeight: 27,
-          fontFamily: displayFamily("700"),
-          fontWeight: "700",
-          letterSpacing: -0.4,
-          textAlign: "center",
+          flexDirection: "row",
+          flexWrap: "wrap",
+          columnGap: GRID_GAP,
+          rowGap: 18,
+          paddingHorizontal: GUTTER,
           marginTop: 20,
         }}
       >
-        {title}
-      </Text>
+        {VIDEO_CATEGORIES.map((category) => (
+          <VideoTile
+            key={category.id}
+            category={category}
+            width={colW}
+            themeName={themeName}
+            onPress={() => onOpenCategory?.(category.id)}
+          />
+        ))}
+      </View>
+    </>
+  );
+}
 
-      <Text
-        style={{
-          color: t.text.muted,
-          fontSize: 14.5,
-          lineHeight: 22,
-          textAlign: "center",
-          marginTop: 10,
-          maxWidth: 320,
-        }}
-      >
-        {body}
-      </Text>
-
-      {/* Phase badge — tells the user which release to expect this in. */}
-      <View
-        style={{
-          marginTop: 18,
-          backgroundColor: t.surface.subtle,
-          borderWidth: 1,
-          borderColor: t.border.subtle,
-          borderRadius: primitives.radii.full,
-          paddingHorizontal: 12,
-          paddingVertical: 6,
-        }}
-      >
+// VideoTile — a 2-up grid card for a video category: 16:9 thumbnail with a
+// centered play badge, then the title and the number of films.
+function VideoTile({
+  category,
+  width,
+  themeName,
+  onPress,
+}: {
+  category: VideoCategory;
+  width: number;
+  themeName: ThemeName;
+  onPress: () => void;
+}) {
+  const t = themes[themeName];
+  const c = useGroupedColors(themeName);
+  const count = category.videos.length;
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${category.title}. ${count > 1 ? `${count} vidéos` : "1 vidéo"}.`}
+      onPress={onPress}
+      style={({ pressed }) => ({
+        width,
+        backgroundColor: pressed ? t.border.subtle : c.cardBg,
+        borderRadius: primitives.radii.lg,
+        borderWidth: c.cardBorder ? 1 : 0,
+        borderColor: c.cardBorder,
+        overflow: "hidden",
+        transform: pressed ? [{ scale: 0.985 }] : [{ scale: 1 }],
+      })}
+    >
+      <View>
+        <RemoteImage
+          uri={category.videos[0] ? youtubeThumb(category.videos[0].youtubeId) : category.imageUrl}
+          seed={category.seed}
+          width="100%"
+          aspectRatio={16 / 9}
+          pixelWidth={640}
+          pixelHeight={360}
+          themeName={themeName}
+          accessibilityLabel={category.alt}
+        />
+        {/* Centered play badge over the thumbnail. */}
+        <View
+          pointerEvents="none"
+          style={[StyleSheet.absoluteFill, { alignItems: "center", justifyContent: "center" }]}
+        >
+          <View
+            style={{
+              width: 44,
+              height: 44,
+              borderRadius: 22,
+              backgroundColor: "rgba(0,0,0,0.55)",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <Play size={20} color="#FFFFFF" fill="#FFFFFF" />
+          </View>
+        </View>
+      </View>
+      <View style={{ padding: 12 }}>
         <Text
           style={{
-            color: t.brand.accent,
-            fontSize: 12,
+            color: t.text.body,
+            fontSize: 14.5,
+            lineHeight: 19,
             fontFamily: ralewayFamily("700"),
             fontWeight: "700",
-            letterSpacing: 0.4,
-            textTransform: "uppercase",
+            letterSpacing: -0.1,
           }}
         >
-          {badge}
+          {category.title}
+        </Text>
+        <Text style={{ color: t.text.muted, fontSize: 12.5, marginTop: 4 }}>
+          {count > 1 ? `${count} vidéos` : "1 vidéo"}
         </Text>
       </View>
-    </View>
+    </Pressable>
   );
 }
 

@@ -7,19 +7,21 @@
 //   - PERSONAS #8: "Share-to-WhatsApp / share-to-Mail must be one tap from
 //     any document." → the share action in the nav bar.
 //
-// The actual PDF render needs a viewer (e.g. a PDF lib + a dev build), so the
-// preview here is an honest placeholder, not a fake div-screenshot. "Open
-// document" is a stub until that lands.
+// "Ouvrir le document" opens the real FFIE source (the public PDF where one
+// exists, otherwise the document's FFIE detail page) in the in-app browser —
+// the same expo-web-browser PAGE_SHEET pattern used across the app. A bundled
+// PDF viewer is still a follow-up (needs a dev build).
 
 import React, { useState } from "react";
 import { ChevronLeft, FileText, Share2, WifiOff } from "lucide-react-native";
-import { Pressable, ScrollView, Share, Switch, Text, View } from "react-native";
+import { Image, Pressable, ScrollView, Share, StyleSheet, Switch, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import * as WebBrowser from "expo-web-browser";
 import { primitives, themes, type ThemeName } from "@tokens";
 import { displayFamily } from "@/theme/fonts";
 import { GUTTER, InsetGroup, InsetRow, useGroupedColors } from "@/components/ui/ios";
 import { SavedBadge } from "@/components/ui/SavedBadge";
-import type { Doc } from "@/data/docs";
+import { docSubtitle, type Doc } from "@/data/docs";
 
 export function DocDetailScreen({
   doc,
@@ -37,6 +39,8 @@ export function DocDetailScreen({
   // reflects the real local-cache state and the toggle triggers the
   // download / eviction.
   const [savedOffline, setSavedOffline] = useState(doc.saved);
+  // Real cover image — drops to the FileText placeholder if it can't be fetched.
+  const [coverFailed, setCoverFailed] = useState(false);
 
   const share = async () => {
     try {
@@ -45,6 +49,19 @@ export function DocDetailScreen({
       // dismissed — no-op
     }
   };
+
+  // Public PDF where the FFIE site exposes one, otherwise the FFIE detail page.
+  const openUrl = doc.sourceUrl ?? doc.detailUrl;
+  const openLabel = doc.sourceUrl ? "Ouvrir le document (PDF)" : "Voir sur ffie.fr";
+  const openDocument = () => {
+    WebBrowser.openBrowserAsync(openUrl, {
+      presentationStyle: WebBrowser.WebBrowserPresentationStyle.PAGE_SHEET,
+    }).catch(() => {
+      // browser unavailable — no-op
+    });
+  };
+
+  const showCover = !!doc.thumbUrl && !coverFailed;
 
   return (
     <SafeAreaView edges={["top"]} style={{ flex: 1, backgroundColor: c.pageBg }}>
@@ -94,11 +111,11 @@ export function DocDetailScreen({
       </View>
 
       <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
-        {/* Preview placeholder — honest stand-in for the PDF render */}
+        {/* Preview — the real FFIE cover, with an honest placeholder fallback */}
         <View style={{ paddingHorizontal: GUTTER, marginBottom: 20 }}>
           <View
             style={{
-              height: 200,
+              height: 220,
               borderRadius: primitives.radii.lg,
               backgroundColor: themeName === "dark" ? t.surface.raised : t.surface.subtle,
               borderWidth: c.cardBorder ? 1 : 0,
@@ -106,21 +123,34 @@ export function DocDetailScreen({
               alignItems: "center",
               justifyContent: "center",
               rowGap: 10,
+              overflow: "hidden",
             }}
           >
-            <View
-              style={{
-                width: 56,
-                height: 68,
-                borderRadius: 8,
-                backgroundColor: t.brand.institutional,
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <FileText size={28} color="#FFFFFF" />
-            </View>
-            <Text style={{ color: t.text.muted, fontSize: 12 }}>Aperçu PDF · s'ouvre dans l'application complète</Text>
+            {showCover ? (
+              <Image
+                source={{ uri: doc.thumbUrl }}
+                onError={() => setCoverFailed(true)}
+                resizeMode="contain"
+                style={StyleSheet.absoluteFill}
+                accessibilityLabel={`Couverture : ${doc.title}`}
+              />
+            ) : (
+              <>
+                <View
+                  style={{
+                    width: 56,
+                    height: 68,
+                    borderRadius: 8,
+                    backgroundColor: t.brand.institutional,
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <FileText size={28} color="#FFFFFF" />
+                </View>
+                <Text style={{ color: t.text.muted, fontSize: 12 }}>Aperçu du document FFIE</Text>
+              </>
+            )}
           </View>
         </View>
 
@@ -139,7 +169,7 @@ export function DocDetailScreen({
           >
             {doc.title}
           </Text>
-          <Text style={{ color: t.text.muted, fontSize: 14, marginTop: 6 }}>{doc.subtitle}</Text>
+          <Text style={{ color: t.text.muted, fontSize: 14, marginTop: 6 }}>{docSubtitle(doc)}</Text>
           <View style={{ flexDirection: "row", alignItems: "center", marginTop: 12 }}>
             <SavedBadge saved={savedOffline} size="sm" themeName={themeName} />
           </View>
@@ -175,11 +205,9 @@ export function DocDetailScreen({
           <InsetRow
             icon={FileText}
             iconBg={t.brand.institutional}
-            title="Ouvrir le document"
+            title={openLabel}
             themeName={themeName}
-            onPress={() => {
-              // TODO: open in the PDF viewer when it lands.
-            }}
+            onPress={openDocument}
           />
           <InsetRow
             icon={Share2}
@@ -195,7 +223,22 @@ export function DocDetailScreen({
         {/* Details */}
         <InsetGroup header="Détails" themeName={themeName}>
           <InsetRow title="Format" value="PDF" themeName={themeName} showChevron={false} />
-          <InsetRow title="Catégorie" value={doc.category} themeName={themeName} isLast showChevron={false} />
+          <InsetRow
+            title="Famille"
+            value={doc.family}
+            themeName={themeName}
+            showChevron={false}
+            isLast={doc.categories.length === 0}
+          />
+          {doc.categories.length > 0 ? (
+            <InsetRow
+              title={doc.categories.length > 1 ? "Catégories" : "Catégorie"}
+              subtitle={doc.categories.join(" · ")}
+              themeName={themeName}
+              showChevron={false}
+              isLast
+            />
+          ) : null}
         </InsetGroup>
       </ScrollView>
     </SafeAreaView>

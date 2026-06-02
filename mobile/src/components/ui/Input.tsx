@@ -29,7 +29,7 @@ export type InputProps = {
   helperText?: string;
   error?: string;
   required?: boolean;
-  type?: "text" | "email" | "password";
+  type?: "text" | "email" | "password" | "decimal";
   themeName?: ThemeName;
   autoFocus?: boolean;
   autoCapitalize?: TextInputProps["autoCapitalize"];
@@ -58,9 +58,10 @@ export function Input({
   const [focused, setFocused] = useState(false);
   const invalid = Boolean(error);
 
-  // Type → keyboard + behavior mapping.
+  // Type → keyboard + behavior mapping. "decimal" surfaces the number pad with
+  // the locale separator (FR users type "0,85") — the consumer parses it.
   const keyboardType: TextInputProps["keyboardType"] =
-    type === "email" ? "email-address" : "default";
+    type === "email" ? "email-address" : type === "decimal" ? "decimal-pad" : "default";
   const secureTextEntry = type === "password";
 
   // Border color precedence: error > focus > strong default.
@@ -98,8 +99,8 @@ export function Input({
         placeholderTextColor={t.text.placeholder}
         secureTextEntry={secureTextEntry}
         keyboardType={keyboardType}
-        autoCapitalize={autoCapitalize ?? (type === "email" || type === "password" ? "none" : "sentences")}
-        autoCorrect={type !== "email" && type !== "password"}
+        autoCapitalize={autoCapitalize ?? (type === "text" ? "sentences" : "none")}
+        autoCorrect={type === "text"}
         autoFocus={autoFocus}
         returnKeyType={returnKeyType}
         onSubmitEditing={onSubmitEditing}

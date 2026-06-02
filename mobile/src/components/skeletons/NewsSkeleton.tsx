@@ -58,6 +58,11 @@ export function NewsSkeleton({ themeName = "light" }: { themeName?: ThemeName })
         <ScrollView contentContainerStyle={{ paddingBottom: 32 }} scrollEnabled={false}>
           <LargeTitleHeader title="Actualités" themeName={themeName} />
 
+          {/* News / Events segmented control (sits under the large title). */}
+          <View style={{ paddingHorizontal: GUTTER, paddingTop: 6, paddingBottom: 4 }}>
+            <SkeletonBlock width="100%" height={40} radius={primitives.radii.md} themeName={themeName} />
+          </View>
+
           <View style={{ paddingHorizontal: GUTTER, paddingTop: 4 }}>
             {/* Hero card */}
             <View

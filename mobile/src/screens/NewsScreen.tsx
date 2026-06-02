@@ -16,7 +16,6 @@
 // guest shell; members never hit the locked branch.
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, Lock } from "lucide-react-native";
 import {
   Pressable,
   ScrollView,
@@ -30,6 +29,8 @@ import { primitives, themes, type ThemeName } from "@tokens";
 import { ralewayFamily, displayFamily } from "@/theme/fonts";
 import { GUTTER, LargeTitleHeader, useGroupedColors } from "@/components/ui/ios";
 import { RemoteImage } from "@/components/ui/RemoteImage";
+import { Pagination } from "@/components/ui/Pagination";
+import { LockTag } from "@/components/ui/LockTag";
 import { FilterButton, FilterSheet, type FilterOption } from "@/components/ui/FilterControls";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { ARTICLES, type Article, type NewsCategory } from "@/data/news";
@@ -439,179 +440,6 @@ function NewsFeed({
   );
 }
 
-// Build the page-indicator tokens: always the first and last page, a 3-wide
-// window centred on the current page (shifted inward at the edges so it stays
-// 3 numbers), and "gap" markers (unique strings, for React keys) wherever a
-// run of pages is skipped. Returns e.g. [1,"g1",6,7,8,"g8",130] for page 7.
-function buildPageTokens(page: number, total: number): (number | string)[] {
-  if (total <= 5) return Array.from({ length: total }, (_, i) => i + 1);
-
-  let start = page - 1;
-  let end = page + 1;
-  if (start < 1) {
-    start = 1;
-    end = 3;
-  }
-  if (end > total) {
-    end = total;
-    start = total - 2;
-  }
-
-  const set = new Set<number>([1, total]);
-  for (let p = start; p <= end; p++) set.add(p);
-
-  const sorted = [...set].sort((a, b) => a - b);
-  const tokens: (number | string)[] = [];
-  let prev = 0;
-  for (const p of sorted) {
-    if (p - prev > 1) tokens.push(`gap-${prev}`);
-    tokens.push(p);
-    prev = p;
-  }
-  return tokens;
-}
-
-// ---------------------------------------------------------------------------
-// Pagination — bottom-of-feed page indicator with prev/next arrows. Visual
-// only for now: tapping a number or an arrow moves the highlighted page (and
-// re-centres the window), but doesn't actually re-page the article list.
-// ---------------------------------------------------------------------------
-function Pagination({
-  themeName,
-  page,
-  totalPages,
-  onPrev,
-  onNext,
-  onJump,
-}: {
-  themeName: ThemeName;
-  page: number;
-  totalPages: number;
-  onPrev: () => void;
-  onNext: () => void;
-  onJump: (p: number) => void;
-}) {
-  const t = themes[themeName];
-  const atStart = page <= 1;
-  const atEnd = page >= totalPages;
-
-  // Tokens to render: the first page, a 3-wide window centred on the current
-  // page (shifted inward at the edges), the last page, and dotted gaps where
-  // numbers are skipped. e.g. page 7 → 1 … 6 7 8 … 130; page 1 → 1 2 3 … 130.
-  // String tokens are gap markers (kept unique per position for React keys).
-  const tokens = buildPageTokens(page, totalPages);
-
-  const Arrow = ({
-    dir,
-    disabled,
-    onPress,
-  }: {
-    dir: "left" | "right";
-    disabled: boolean;
-    onPress: () => void;
-  }) => {
-    const Icon = dir === "left" ? ChevronLeft : ChevronRight;
-    return (
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={dir === "left" ? "Page précédente" : "Page suivante"}
-        accessibilityState={{ disabled }}
-        disabled={disabled}
-        onPress={onPress}
-        hitSlop={6}
-        style={({ pressed }) => ({
-          width: 40,
-          height: 40,
-          borderRadius: 20,
-          borderWidth: 1,
-          borderColor: t.border.default,
-          alignItems: "center",
-          justifyContent: "center",
-          backgroundColor: pressed && !disabled ? t.border.subtle : "transparent",
-          opacity: disabled ? 0.35 : 1,
-        })}
-      >
-        <Icon size={20} color={disabled ? t.text.muted : t.brand.accent} />
-      </Pressable>
-    );
-  };
-
-  return (
-    <View
-      style={{
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "center",
-        columnGap: 14,
-        marginTop: 28,
-        paddingHorizontal: GUTTER,
-      }}
-    >
-      <Arrow dir="left" disabled={atStart} onPress={onPrev} />
-
-      <View style={{ flexDirection: "row", alignItems: "center", columnGap: 6 }}>
-        {tokens.map((tok) => {
-          if (typeof tok === "string") {
-            // Dotted gap (ellipsis) where a run of pages is skipped.
-            return (
-              <Text
-                key={tok}
-                accessibilityElementsHidden
-                importantForAccessibility="no"
-                style={{
-                  color: t.text.muted,
-                  fontSize: 16,
-                  paddingHorizontal: 2,
-                  letterSpacing: 1,
-                }}
-              >
-                …
-              </Text>
-            );
-          }
-          const active = tok === page;
-          return (
-            <Pressable
-              key={tok}
-              accessibilityRole="button"
-              accessibilityLabel={`Page ${tok}`}
-              accessibilityState={{ selected: active }}
-              onPress={() => onJump(tok)}
-              hitSlop={4}
-              style={({ pressed }) => ({
-                minWidth: 30,
-                height: 30,
-                borderRadius: 15,
-                paddingHorizontal: 8,
-                alignItems: "center",
-                justifyContent: "center",
-                backgroundColor: active
-                  ? t.brand.accent
-                  : pressed
-                    ? t.border.subtle
-                    : "transparent",
-              })}
-            >
-              <Text
-                style={{
-                  color: active ? "#FFFFFF" : t.text.muted,
-                  fontSize: 14,
-                  fontFamily: ralewayFamily("600"),
-                  fontWeight: "600",
-                }}
-              >
-                {tok}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </View>
-
-      <Arrow dir="right" disabled={atEnd} onPress={onNext} />
-    </View>
-  );
-}
-
 // ---------------------------------------------------------------------------
 // CategoryTag — pill carrying the article category. Colour + label (never
 // colour alone, P4). `muted` renders the locked/member-only treatment.
@@ -649,28 +477,6 @@ function CategoryTag({
         }}
       >
         {label}
-      </Text>
-    </View>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// LockTag — member-only indicator. Icon + "Members" label (P4).
-// ---------------------------------------------------------------------------
-function LockTag({ themeName, small = false }: { themeName: ThemeName; small?: boolean }) {
-  const t = themes[themeName];
-  return (
-    <View style={{ flexDirection: "row", alignItems: "center", columnGap: 4 }}>
-      <Lock size={small ? 11 : 12} color={t.text.muted} />
-      <Text
-        style={{
-          fontSize: small ? 10 : 11,
-          color: t.text.muted,
-          fontFamily: ralewayFamily("500"),
-          fontWeight: "500",
-        }}
-      >
-        Adhérents
       </Text>
     </View>
   );

@@ -1,21 +1,33 @@
 // FFIE — Doc Library Screen, styled to iOS HIG (large title, rounded search,
 // grouped inset list) via the shared iOS primitives (components/ui/ios).
 //
-// Design contracts still honored from the original spec:
+// Renders the full FFIE documents catalogue (335 docs — see src/data/docs.ts).
+// Layout mirrors the live FFIE documents page (and the News feed): a flat list
+// in the site's own order, PAGINATED with the shared Pagination control, rather
+// than one endless scroll. On top of paging:
+//   - "Afficher plus / moins" reveals the rest of the current page (it opens at
+//     10 entries — a quick glance — and expands to the full page on demand).
+//   - A "back to top" button floats in once you scroll down.
+//   - Member-only documents carry a lock tag for viewers who can't open them
+//     (guests) — the same LockTag the News cards use.
+// Paging caps the rendered rows (≤ one page), so a plain ScrollView is fine — no
+// virtualization needed.
+//
+// Design contracts honored:
 //   1. Search field at top (P3) — no autofocus (keyboard-on-mount is rude).
 //   2. Rows ≥48pt (P1) — InsetRow floors minHeight at 48.
 //   3. Offline banner when offline=true (P2).
-//   4. Each row carries a SavedBadge (saved / not saved — icon+label, P2+P4)
-//      accessory — not colour alone.
-//   5. Theme + density supplied by caller.
-//   6. Mobile gutter = 16.
-//
-// Note: this preview uses a ScrollView (10 mock docs). At production scale,
-// swap to a SectionList to keep the grouped-inset look while virtualizing.
+//   4. Each row carries a SavedBadge OR a LockTag (icon+label, never colour
+//      alone — P2+P4).
+//   5. Theme + density supplied by caller. 6. Mobile gutter = 16.
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
+  Image,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -23,12 +35,18 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Search, WifiOff } from "lucide-react-native";
+import { ArrowUp, Search, WifiOff } from "lucide-react-native";
 import { primitives, themes, type ThemeName, type DensityMode } from "@tokens";
+import { ralewayFamily } from "@/theme/fonts";
 import { SavedBadge } from "@/components/ui/SavedBadge";
+import { LockTag } from "@/components/ui/LockTag";
+import { Pagination } from "@/components/ui/Pagination";
 import { FilterButton, FilterSheet } from "@/components/ui/FilterControls";
-import { DOCS, DOC_FAMILIES, type Doc, type DocFamily } from "@/data/docs";
+import { DOCS, DOC_FAMILIES, docSubtitle, type Doc, type DocFamily } from "@/data/docs";
 import { DocDetailScreen } from "@/screens/DocDetailScreen";
+import { MemberOnlyPrompt } from "@/screens/MemberOnlyPrompt";
+import { canAccess, useRole } from "@/auth/roleContext";
+import { useReducedMotion } from "@/hooks/useReducedMotion";
 import {
   GUTTER,
   InsetGroup,
@@ -48,51 +66,73 @@ const FILTER_OPTIONS: { key: SavedFilterKey; label: string }[] = [
   { key: "not-saved", label: "Non enregistrés" },
 ];
 
-// Thumbnail visuals — a 50×66 mock that approximates how a PDF first page
-// renders at small size: title block at top, subtitle line, then body
-// paragraphs. NOT an icon — it should pass for a tiny rendered page.
-//
-// Real PDF first-page rendering needs a native bridge (react-native-pdf-
-// thumbnail, react-native-pdf, or a server-side prerender). When the FFIE
-// backend ships PDFs + thumbnail URIs, swap this whole component for
-// `<Image source={{ uri: doc.thumbnailUri }} />` at the same dimensions.
+// Paging + progressive disclosure. PAGE_SIZE docs per page; each page opens
+// showing INITIAL_VISIBLE rows ("Afficher plus" reveals the rest). Tunable.
+const PAGE_SIZE = 30;
+const INITIAL_VISIBLE = 10;
+// Show the back-to-top button once the user has scrolled roughly a screenful.
+const BACK_TO_TOP_AT = 520;
+
+// Thumbnail visuals — a 50×66 box showing the document's real FFIE cover image.
+// While that image loads (or if it fails / we're offline) we render a mock
+// "rendered page" so the row never shows a broken image.
 const THUMB_WIDTH = 50;
 const THUMB_HEIGHT = 66;
 
-type ThumbTone = "navy" | "teal" | "amber" | "slate";
+type ThumbTone = "navy" | "teal" | "amber" | "slate" | "green";
 
 const TONES: Record<ThumbTone, string> = {
   navy: "#222D5D",
   teal: "#0094A9",
   amber: "#B45309",
   slate: "#4B5563",
+  green: "#15803D",
 };
 
-// Body-text grays for the paragraph lines. Two shades so paragraphs read
-// as paragraphs (denser/lighter rows of "text") rather than uniform bars.
 const BODY_DARK = "#C2C8D2";
 const BODY_LIGHT = "#DDE1E8";
 const SUBTITLE = "#9AA2B1";
 
-// Thumbnail colour is keyed to the document's FFIE family, so every doc in a
-// section shares an accent and the colour carries real meaning (it's never the
-// ONLY signal — the family header and subtitle category say it in words, P4).
+// Mock-page tone is keyed to the document's FFIE family — a meaningful accent
+// for the fallback (never the ONLY signal: the subtitle says it in words, P4).
 const FAMILY_TONE: Record<DocFamily, ThumbTone> = {
   "Courants forts": "navy",
-  "Sûreté / Sécurité incendie": "amber",
-  "Bâtiments connectés": "teal",
-  "Performance énergétique": "teal",
+  "Sûreté / Sécurité Incendie": "amber",
   "Vie de l'entreprise": "slate",
+  "Bâtiments connectés": "teal",
+  "Performance énergétique": "green",
   Maintenance: "slate",
-  Communication: "navy",
+  "Types de documents": "navy",
+  "Autres documents": "slate",
 };
 
-function toneFor(doc: Doc): ThumbTone {
-  return FAMILY_TONE[doc.family];
+function MockPage({ tone }: { tone: ThumbTone }) {
+  const titleColor = TONES[tone];
+  return (
+    <View style={{ paddingTop: 5, paddingHorizontal: 5 }}>
+      <View style={{ height: 4, backgroundColor: titleColor, width: "80%" }} />
+      <View style={{ height: 1.5, backgroundColor: SUBTITLE, width: "55%", marginTop: 3 }} />
+      <View style={{ marginTop: 5, rowGap: 1.5 }}>
+        <View style={{ height: 1.5, backgroundColor: BODY_DARK, width: "92%" }} />
+        <View style={{ height: 1.5, backgroundColor: BODY_DARK, width: "88%" }} />
+        <View style={{ height: 1.5, backgroundColor: BODY_DARK, width: "90%" }} />
+        <View style={{ height: 1.5, backgroundColor: BODY_DARK, width: "62%" }} />
+      </View>
+      <View style={{ marginTop: 4, rowGap: 1.5 }}>
+        <View style={{ height: 1.5, backgroundColor: BODY_LIGHT, width: "85%" }} />
+        <View style={{ height: 1.5, backgroundColor: BODY_LIGHT, width: "92%" }} />
+        <View style={{ height: 1.5, backgroundColor: BODY_LIGHT, width: "78%" }} />
+        <View style={{ height: 1.5, backgroundColor: BODY_LIGHT, width: "50%" }} />
+      </View>
+    </View>
+  );
 }
 
-function DocThumbnail({ tone }: { tone: ThumbTone }) {
-  const titleColor = TONES[tone];
+function DocThumbnail({ doc }: { doc: Doc }) {
+  // Show the real FFIE cover; on load failure (offline / 404) drop to the mock.
+  const [failed, setFailed] = useState(false);
+  const tone = FAMILY_TONE[doc.family];
+  const showImage = !!doc.thumbUrl && !failed;
   return (
     <View
       style={{
@@ -103,36 +143,24 @@ function DocThumbnail({ tone }: { tone: ThumbTone }) {
         borderWidth: StyleSheet.hairlineWidth,
         borderColor: "#C2C8D2",
         overflow: "hidden",
-        // Subtle page-lift shadow — sells "paper card" without distracting.
         shadowColor: "#000",
-        shadowOpacity: 0.10,
+        shadowOpacity: 0.1,
         shadowOffset: { width: 0, height: 1 },
         shadowRadius: 2,
         elevation: 1,
       }}
     >
-      <View style={{ paddingTop: 5, paddingHorizontal: 5 }}>
-        {/* Title block — short, thick, in tone color. Reads as the H1. */}
-        <View style={{ height: 4, backgroundColor: titleColor, width: "80%" }} />
-        {/* Subtitle / standard number line */}
-        <View style={{ height: 1.5, backgroundColor: SUBTITLE, width: "55%", marginTop: 3 }} />
-
-        {/* Paragraph 1 — 4 body lines */}
-        <View style={{ marginTop: 5, rowGap: 1.5 }}>
-          <View style={{ height: 1.5, backgroundColor: BODY_DARK, width: "92%" }} />
-          <View style={{ height: 1.5, backgroundColor: BODY_DARK, width: "88%" }} />
-          <View style={{ height: 1.5, backgroundColor: BODY_DARK, width: "90%" }} />
-          <View style={{ height: 1.5, backgroundColor: BODY_DARK, width: "62%" }} />
-        </View>
-
-        {/* Paragraph 2 — 4 slightly lighter body lines */}
-        <View style={{ marginTop: 4, rowGap: 1.5 }}>
-          <View style={{ height: 1.5, backgroundColor: BODY_LIGHT, width: "85%" }} />
-          <View style={{ height: 1.5, backgroundColor: BODY_LIGHT, width: "92%" }} />
-          <View style={{ height: 1.5, backgroundColor: BODY_LIGHT, width: "78%" }} />
-          <View style={{ height: 1.5, backgroundColor: BODY_LIGHT, width: "50%" }} />
-        </View>
-      </View>
+      <MockPage tone={tone} />
+      {showImage ? (
+        <Image
+          source={{ uri: doc.thumbUrl }}
+          onError={() => setFailed(true)}
+          resizeMode="cover"
+          style={StyleSheet.absoluteFill}
+          accessibilityElementsHidden
+          importantForAccessibility="no"
+        />
+      ) : null}
     </View>
   );
 }
@@ -142,45 +170,81 @@ type Props = {
   density: DensityMode;
   offline: boolean;
   onDocPress?: (doc: Doc) => void;
+  /** Tapping a member-only doc as a guest opens the membership upsell, whose
+   *  primary CTA calls this — the guest shell points it at the federation
+   *  directory (map + departmental list). Omitted in the member shell (members
+   *  can open every doc, so the upsell never appears). */
+  onApply?: () => void;
+  /** Secondary CTA on that upsell — "J'ai déjà un compte" → sign-in. */
+  onSignIn?: () => void;
   /** Incremented by the shell when the Library tab is re-tapped while already
-   *  active. Pops an open document back to the list. */
+   *  active. Pops an open document / upsell back to the list. */
   resetSignal?: number;
-  /** Fired with `true` when a document detail is open, `false` back on the
-   *  list. The shell uses it to hide the floating avatar on detail pages. */
+  /** Fired with `true` when a document detail or the upsell is open, `false`
+   *  back on the list. The shell uses it to hide the floating avatar. */
   onDetailChange?: (isDetail: boolean) => void;
 };
 
-export function DocLibraryScreen({ themeName, density, offline, onDocPress, resetSignal, onDetailChange }: Props) {
+export function DocLibraryScreen({
+  themeName,
+  density,
+  offline,
+  onDocPress,
+  onApply,
+  onSignIn,
+  resetSignal,
+  onDetailChange,
+}: Props) {
   void density; // grouped rows own their rhythm now
   const t = themes[themeName];
   const c = useGroupedColors(themeName);
+  const { role } = useRole();
+  const reducedMotion = useReducedMotion();
+  const scrollRef = useRef<ScrollView>(null);
+
   const [query, setQuery] = useState("");
   const [filterOpen, setFilterOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState<Set<SavedFilterKey>>(new Set());
-  const [selected, setSelected] = useState<Doc | null>(null);
+  // A tapped doc opens either its detail (accessible) or the member-only upsell
+  // (a guest tapping a locked doc) — one surface at a time over the list.
+  const [active, setActive] = useState<{ kind: "detail" | "locked"; doc: Doc } | null>(null);
+  const [page, setPage] = useState(1);
+  const [expanded, setExpanded] = useState(false); // "show more" on the current page
+  const [showBackToTop, setShowBackToTop] = useState(false);
 
-  // Tell the shell when a document detail is open so it can hide the floating
-  // avatar (main pages only).
+  // Guests see locks on member-only docs; members/admins can open everything.
+  const canReadMemberContent = canAccess(role, "member-only");
+
+  // Tell the shell when a sub-view (detail or upsell) is open so it can hide
+  // the floating avatar (main pages only).
   useEffect(() => {
-    onDetailChange?.(selected !== null);
-  }, [selected, onDetailChange]);
+    onDetailChange?.(active !== null);
+  }, [active, onDetailChange]);
 
-  // Re-tapping the active Library tab pops an open document back to the list.
-  // Skip the mount run so only genuine re-taps trigger it.
+  // Re-tapping the active Library tab pops an open document / upsell back to the
+  // list. Skip the mount run so only genuine re-taps trigger it.
   const isFirstResetRun = useRef(true);
   useEffect(() => {
     if (isFirstResetRun.current) {
       isFirstResetRun.current = false;
       return;
     }
-    setSelected(null);
+    setActive(null);
   }, [resetSignal]);
 
   const openDoc = (doc: Doc) => {
-    setSelected(doc);
+    // A guest tapping a member-only doc gets the upsell, not a dead end (the
+    // access-model rule: gated content redirects to login + apply, never a 403).
+    const locked = doc.memberOnly && !canReadMemberContent;
+    setActive({ kind: locked ? "locked" : "detail", doc });
     onDocPress?.(doc); // preserve any external hook (analytics, etc.)
   };
 
+  const scrollToTop = (animated = true) => {
+    scrollRef.current?.scrollTo({ y: 0, animated: animated && !reducedMotion });
+  };
+
+  // Search + status filter narrow the corpus (kept in the site's order).
   const filtered = useMemo<Doc[]>(() => {
     const q = query.trim().toLowerCase();
     const hasStatusFilter = statusFilter.size > 0;
@@ -188,20 +252,62 @@ export function DocLibraryScreen({ themeName, density, offline, onDocPress, rese
       const savedKey: SavedFilterKey = d.saved ? "saved" : "not-saved";
       if (hasStatusFilter && !statusFilter.has(savedKey)) return false;
       if (!q) return true;
-      return d.title.toLowerCase().includes(q) || d.subtitle.toLowerCase().includes(q);
+      return (
+        d.title.toLowerCase().includes(q) ||
+        d.category.toLowerCase().includes(q) ||
+        d.categories.some((cat) => cat.toLowerCase().includes(q))
+      );
     });
   }, [query, statusFilter]);
 
+  // Any change to the result set sends us back to page 1, collapsed.
+  useEffect(() => {
+    setPage(1);
+    setExpanded(false);
+  }, [query, statusFilter]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const pageDocs = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+  const visibleDocs = expanded ? pageDocs : pageDocs.slice(0, INITIAL_VISIBLE);
+  const hiddenCount = pageDocs.length - INITIAL_VISIBLE;
+
+  const goToPage = (p: number) => {
+    setPage(p);
+    setExpanded(false);
+    scrollToTop();
+  };
+
+  const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const y = e.nativeEvent.contentOffset.y;
+    const next = y > BACK_TO_TOP_AT;
+    if (next !== showBackToTop) setShowBackToTop(next);
+  };
+
   const activeFilterCount = statusFilter.size;
+  const cachedCount = useMemo(() => DOCS.filter((d) => d.saved).length, []);
 
-  const cachedCount = DOCS.filter((d) => d.saved).length;
-
-  if (selected) {
+  if (active?.kind === "detail") {
     return (
       <DocDetailScreen
-        doc={selected}
+        doc={active.doc}
         themeName={themeName}
-        onBack={() => setSelected(null)}
+        onBack={() => setActive(null)}
+      />
+    );
+  }
+
+  if (active?.kind === "locked") {
+    // Guest tapped a member-only doc → the shared upsell. Its primary CTA
+    // (onApply) is pointed at the federation directory (map + departmental
+    // list) by the guest shell; the secondary CTA opens sign-in.
+    return (
+      <MemberOnlyPrompt
+        themeName={themeName}
+        documentTitle={active.doc.title}
+        onBack={() => setActive(null)}
+        onApply={onApply}
+        onSignIn={onSignIn}
       />
     );
   }
@@ -209,8 +315,11 @@ export function DocLibraryScreen({ themeName, density, offline, onDocPress, rese
   return (
     <SafeAreaView edges={["top"]} style={{ flex: 1, backgroundColor: c.pageBg }}>
       <ScrollView
+        ref={scrollRef}
         keyboardDismissMode="on-drag"
         keyboardShouldPersistTaps="handled"
+        onScroll={onScroll}
+        scrollEventThrottle={16}
         contentContainerStyle={{ paddingBottom: 32 }}
         showsVerticalScrollIndicator={false}
       >
@@ -220,7 +329,7 @@ export function DocLibraryScreen({ themeName, density, offline, onDocPress, rese
         <View
           style={{
             paddingHorizontal: GUTTER,
-            marginBottom: 20,
+            marginBottom: 14,
             flexDirection: "row",
             alignItems: "center",
             columnGap: 10,
@@ -229,8 +338,6 @@ export function DocLibraryScreen({ themeName, density, offline, onDocPress, rese
           <View
             style={{
               flex: 1,
-              // A touch taller on Android — the native text baseline sits
-              // higher there, so 38 felt cramped; iOS keeps the tighter figure.
               height: Platform.OS === "android" ? 46 : 38,
               borderRadius: 10,
               backgroundColor: t.border.subtle,
@@ -269,6 +376,21 @@ export function DocLibraryScreen({ themeName, density, offline, onDocPress, rese
           />
         </View>
 
+        {/* Result count — mirrors the FFIE site's "335 documents" line. */}
+        <Text
+          accessibilityRole="header"
+          style={{
+            paddingHorizontal: GUTTER + 4,
+            marginBottom: 14,
+            color: t.text.muted,
+            fontSize: 13,
+            fontFamily: ralewayFamily("500"),
+            fontWeight: "500",
+          }}
+        >
+          {filtered.length} document{filtered.length === 1 ? "" : "s"}
+        </Text>
+
         {/* Offline banner — P2 no-dead-end */}
         {offline ? (
           <View
@@ -299,7 +421,7 @@ export function DocLibraryScreen({ themeName, density, offline, onDocPress, rese
           </View>
         ) : null}
 
-        {/* Grouped inset doc list */}
+        {/* Document list — one rounded inset card for the current (paged) slice. */}
         {filtered.length === 0 ? (
           <View style={{ padding: 48, alignItems: "center" }}>
             <Text style={{ color: t.text.muted, fontSize: 15, marginBottom: 6 }}>Aucun document.</Text>
@@ -308,37 +430,115 @@ export function DocLibraryScreen({ themeName, density, offline, onDocPress, rese
             </Text>
           </View>
         ) : (
-          // Structured by FFIE family (FFIE-DOC-01): one grouped section per
-          // family, in canonical order, empty families omitted. Search + the
-          // status filter narrow `filtered` first, then we section the result.
-          DOC_FAMILIES.map((family) => {
-            const docs = filtered.filter((d) => d.family === family);
-            if (docs.length === 0) return null;
-            return (
-              <InsetGroup key={family} header={family} themeName={themeName}>
-                {docs.map((doc, i) => (
-                  <InsetRow
-                    key={doc.id}
-                    leading={<DocThumbnail tone={toneFor(doc)} />}
-                    leadingWidth={THUMB_WIDTH}
-                    title={doc.title}
-                    titleNumberOfLines={2}
-                    subtitle={doc.subtitle}
-                    themeName={themeName}
-                    isLast={i === docs.length - 1}
-                    showChevron={false}
-                    accessibilityLabel={`${doc.title}. ${doc.category}. ${
-                      doc.saved ? "Enregistré hors ligne" : "Non enregistré hors ligne"
-                    }`}
-                    onPress={() => openDoc(doc)}
-                    trailing={<SavedBadge saved={doc.saved} size="sm" themeName={themeName} />}
-                  />
-                ))}
-              </InsetGroup>
-            );
-          })
+          <InsetGroup themeName={themeName}>
+            {visibleDocs.map((doc, i) => {
+              const locked = doc.memberOnly && !canReadMemberContent;
+              return (
+                <InsetRow
+                  key={doc.id}
+                  leading={<DocThumbnail doc={doc} />}
+                  leadingWidth={THUMB_WIDTH}
+                  title={doc.title}
+                  titleNumberOfLines={2}
+                  subtitle={docSubtitle(doc)}
+                  themeName={themeName}
+                  isLast={i === visibleDocs.length - 1}
+                  showChevron={false}
+                  accessibilityLabel={`${doc.title}. ${docSubtitle(doc)}. ${
+                    locked
+                      ? "Réservé aux adhérents"
+                      : doc.saved
+                        ? "Enregistré hors ligne"
+                        : "Non enregistré hors ligne"
+                  }`}
+                  onPress={() => openDoc(doc)}
+                  trailing={
+                    locked ? (
+                      <LockTag themeName={themeName} small />
+                    ) : (
+                      <SavedBadge saved={doc.saved} size="sm" themeName={themeName} />
+                    )
+                  }
+                />
+              );
+            })}
+          </InsetGroup>
         )}
+
+        {/* Show more / less — reveals the rest of the current page (opens at 10). */}
+        {hiddenCount > 0 ? (
+          <View style={{ paddingHorizontal: GUTTER, marginTop: 16, alignItems: "center" }}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={
+                expanded ? "Afficher moins de documents" : `Afficher ${hiddenCount} documents de plus`
+              }
+              onPress={() => setExpanded((v) => !v)}
+              style={({ pressed }) => ({
+                paddingHorizontal: 18,
+                height: 40,
+                borderRadius: 20,
+                borderWidth: 1,
+                borderColor: t.border.default,
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: pressed ? t.border.subtle : "transparent",
+              })}
+            >
+              <Text
+                style={{
+                  color: t.brand.accent,
+                  fontSize: 14,
+                  fontFamily: ralewayFamily("600"),
+                  fontWeight: "600",
+                }}
+              >
+                {expanded ? "Afficher moins" : `Afficher plus (${hiddenCount})`}
+              </Text>
+            </Pressable>
+          </View>
+        ) : null}
+
+        {/* Page switcher — same control as the News feed. */}
+        {totalPages > 1 ? (
+          <Pagination
+            themeName={themeName}
+            page={safePage}
+            totalPages={totalPages}
+            onPrev={() => goToPage(Math.max(1, safePage - 1))}
+            onNext={() => goToPage(Math.min(totalPages, safePage + 1))}
+            onJump={goToPage}
+          />
+        ) : null}
       </ScrollView>
+
+      {/* Back-to-top — floats in once scrolled down, just above the tab bar. */}
+      {showBackToTop ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Revenir en haut"
+          onPress={() => scrollToTop()}
+          style={({ pressed }) => ({
+            position: "absolute",
+            right: GUTTER,
+            bottom: 20,
+            width: 44,
+            height: 44,
+            borderRadius: 22,
+            backgroundColor: pressed ? t.action.primary.bgPressed : t.action.primary.bg,
+            alignItems: "center",
+            justifyContent: "center",
+            // Lift it off the list.
+            shadowColor: "#000",
+            shadowOpacity: 0.18,
+            shadowOffset: { width: 0, height: 2 },
+            shadowRadius: 5,
+            elevation: 4,
+          })}
+        >
+          <ArrowUp size={22} color="#FFFFFF" />
+        </Pressable>
+      ) : null}
 
       <FilterSheet
         visible={filterOpen}

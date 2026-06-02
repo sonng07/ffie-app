@@ -2,13 +2,17 @@
 //
 // A skeleton screen mirrors the SHAPE of the page that's about to land:
 // same gutters, same card sizes, same row rhythm, so the layout doesn't jump
-// when real content swaps in. The blocks pulse gently in unison (a single
-// shared Animated value drives every block under a SkeletonGroup) so the
-// effect reads as "loading", not decoration.
+// when real content swaps in.
+//
+// Motion treatment: each block is a calm resting grey with a soft highlight
+// "sweep" travelling left→right across it, in unison (a single shared Animated
+// value under a SkeletonGroup drives every block) — the modern shimmer look,
+// reading clearly as "loading" rather than decoration. One native-driven
+// animation, one gradient per block.
 //
 // Motion safety (non-negotiable, P5): when the OS "Reduce Motion" setting is
-// on, the pulse is disabled and blocks render as a flat, calm grey — no
-// looping animation at all.
+// on, the sweep is disabled entirely and blocks render as a flat, calm grey —
+// no looping animation at all.
 //
 // Usage:
 //   <SkeletonGroup themeName={themeName}>
@@ -16,58 +20,60 @@
 //     <SkeletonBlock width="100%" aspectRatio={16 / 9} radius={primitives.radii.lg} />
 //   </SkeletonGroup>
 
-import React, { createContext, useContext, useEffect, useRef } from "react";
+import React, { createContext, useContext, useEffect, useRef, useState } from "react";
 import {
   Animated,
   Easing,
   StyleSheet,
+  View,
   type DimensionValue,
+  type LayoutChangeEvent,
   type ViewStyle,
 } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
 import { primitives, themes, type ThemeName } from "@tokens";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
 
-// The shared pulse (0 → 1 → 0). Null when no group wraps a block, in which
-// case the block falls back to a static mid opacity.
-const PulseContext = createContext<Animated.Value | null>(null);
+// The shared sweep progress (0 → 1, looping). Null when no group wraps a block
+// or when Reduce Motion is on — in which case the block renders flat, no sheen.
+const SweepContext = createContext<Animated.Value | null>(null);
 
-const PULSE_PERIOD = 850; // ms per half-cycle — slow, "breathing", non-distracting
+// One full traverse of the highlight across a block. Slow enough to read as a
+// gentle, non-distracting shimmer; the linear loop restarts cleanly each pass.
+const SWEEP_PERIOD = 1300; // ms per left→right pass
 
 // ---------------------------------------------------------------------------
-// SkeletonGroup — owns the looping pulse and shares it with every SkeletonBlock
+// SkeletonGroup — owns the looping sweep and shares it with every SkeletonBlock
 // underneath, so the whole screen shimmers as one. One animation, native-driven.
 // ---------------------------------------------------------------------------
 export function SkeletonGroup({ children }: { children: React.ReactNode }) {
-  const pulse = useRef(new Animated.Value(0)).current;
+  const progress = useRef(new Animated.Value(0)).current;
   const reducedMotion = useReducedMotion();
 
   useEffect(() => {
     if (reducedMotion) {
-      // Settle to a steady mid value — a calm static placeholder, no loop.
-      pulse.setValue(0.5);
+      // Hold at rest — blocks fall back to a flat, calm placeholder, no loop.
+      progress.setValue(0);
       return;
     }
     const anim = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulse, {
-          toValue: 1,
-          duration: PULSE_PERIOD,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
-        }),
-        Animated.timing(pulse, {
-          toValue: 0,
-          duration: PULSE_PERIOD,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
-        }),
-      ])
+      Animated.timing(progress, {
+        toValue: 1,
+        duration: SWEEP_PERIOD,
+        easing: Easing.linear, // steady travel so the loop seam is invisible
+        useNativeDriver: true,
+      })
     );
     anim.start();
     return () => anim.stop();
-  }, [reducedMotion, pulse]);
+  }, [reducedMotion, progress]);
 
-  return <PulseContext.Provider value={pulse}>{children}</PulseContext.Provider>;
+  // Null when reduce-motion is on → SkeletonBlock skips the sheen entirely.
+  return (
+    <SweepContext.Provider value={reducedMotion ? null : progress}>
+      {children}
+    </SweepContext.Provider>
+  );
 }
 
 // Resting fill tone — visible against both the white/grey page and the grouped
@@ -77,10 +83,19 @@ function skeletonTone(themeName: ThemeName): string {
   return themes[themeName].border.default;
 }
 
+// The travelling highlight: a soft band brighter than the resting fill, fading
+// to transparent at both edges. White reads as a sheen over the grey in every
+// theme; dark mode needs far less alpha to avoid a harsh streak.
+function skeletonSheen(themeName: ThemeName): [string, string, string] {
+  const edge = "rgba(255,255,255,0)";
+  const highlight = themeName === "dark" ? "rgba(255,255,255,0.10)" : "rgba(255,255,255,0.55)";
+  return [edge, highlight, edge];
+}
+
 // ---------------------------------------------------------------------------
-// SkeletonBlock — one placeholder rectangle. Pulses opacity in sync with its
-// SkeletonGroup. Width/height/aspectRatio/radius mirror the real element it
-// stands in for.
+// SkeletonBlock — one placeholder rectangle. A flat resting grey with the
+// shared highlight sweeping across it. Width/height/aspectRatio/radius mirror
+// the real element it stands in for.
 // ---------------------------------------------------------------------------
 export function SkeletonBlock({
   width = "100%",
@@ -97,14 +112,25 @@ export function SkeletonBlock({
   themeName?: ThemeName;
   style?: ViewStyle;
 }) {
-  const pulse = useContext(PulseContext);
-  // Gentle "slight" shimmer: never fully opaque, never fully gone.
-  const opacity = pulse
-    ? pulse.interpolate({ inputRange: [0, 1], outputRange: [0.45, 0.85] })
-    : 0.6;
+  const progress = useContext(SweepContext);
+  // Measured pixel width drives the sweep distance (percentage widths can't be
+  // interpolated, so we read the laid-out size once).
+  const [measuredW, setMeasuredW] = useState(0);
+  const onLayout = (e: LayoutChangeEvent) => {
+    const w = e.nativeEvent.layout.width;
+    if (w !== measuredW) setMeasuredW(w);
+  };
+
+  // Travel the highlight from fully off the left edge to fully off the right.
+  // Null until the block is laid out and a (motion-enabled) group is present.
+  const translateX =
+    progress != null && measuredW > 0
+      ? progress.interpolate({ inputRange: [0, 1], outputRange: [-measuredW, measuredW] })
+      : null;
 
   return (
-    <Animated.View
+    <View
+      onLayout={onLayout}
       // Skeletons are decorative — keep them off the accessibility tree so a
       // screen reader announces nothing while content loads.
       accessibilityElementsHidden
@@ -116,11 +142,29 @@ export function SkeletonBlock({
           aspectRatio,
           borderRadius: radius,
           backgroundColor: skeletonTone(themeName),
-          opacity,
+          // A touch of transparency keeps the resting block soft against the
+          // page; the sheen does the "alive" work.
+          opacity: 0.7,
+          overflow: "hidden",
         },
         style,
       ]}
-    />
+    >
+      {translateX ? (
+        <Animated.View
+          pointerEvents="none"
+          style={[StyleSheet.absoluteFillObject, { transform: [{ translateX }] }]}
+        >
+          <LinearGradient
+            colors={skeletonSheen(themeName)}
+            locations={[0, 0.5, 1]}
+            start={{ x: 0, y: 0.5 }}
+            end={{ x: 1, y: 0.5 }}
+            style={StyleSheet.absoluteFillObject}
+          />
+        </Animated.View>
+      ) : null}
+    </View>
   );
 }
 

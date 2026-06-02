@@ -20,12 +20,16 @@ export function MemberOnlyPrompt({
   onApply,
   onSignIn,
   onBack,
+  documentTitle,
 }: {
   themeName?: ThemeName;
   onApply?: () => void;
   onSignIn?: () => void;
   /** When provided, renders a slim back affordance (e.g. returning to News). */
   onBack?: () => void;
+  /** Optional context — the title of the gated item the user tapped (e.g. a
+   *  locked document). Shown as a chip so they know what's behind the wall. */
+  documentTitle?: string;
 }) {
   const t = themes[themeName];
 
@@ -105,6 +109,33 @@ export function MemberOnlyPrompt({
           >
             Ce contenu fait partie de l'offre réservée aux adhérents FFIE. Demandez votre adhésion à la fédération, ou connectez-vous si vous avez déjà un compte.
           </Text>
+
+          {/* Context chip — the gated item the user tapped (e.g. the document). */}
+          {documentTitle ? (
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                columnGap: 8,
+                marginTop: 20,
+                paddingVertical: 10,
+                paddingHorizontal: 14,
+                borderRadius: 12,
+                backgroundColor: themeName === "dark" ? t.surface.raised : t.surface.subtle,
+                borderWidth: 1,
+                borderColor: t.border.subtle,
+                maxWidth: 340,
+              }}
+            >
+              <Lock size={14} color={t.text.muted} />
+              <Text
+                numberOfLines={2}
+                style={{ flex: 1, fontSize: 13.5, color: t.text.body, lineHeight: 19 }}
+              >
+                {documentTitle}
+              </Text>
+            </View>
+          ) : null}
         </View>
 
         {/* Spacer pushes actions to bottom for one-handed reach. */}

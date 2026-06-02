@@ -482,6 +482,11 @@ function renderGuestTab(
           offline={offline}
           resetSignal={actions.resetSignal}
           onDetailChange={actions.onDetailChange}
+          // A guest tapping a locked doc gets the upsell; "Demander l'adhésion"
+          // opens the federation directory (map + departmental list), "J'ai déjà
+          // un compte" opens sign-in — same funnel as the News teaser.
+          onApply={actions.onApply}
+          onSignIn={actions.onSignIn}
           onDocPress={() => {
             // TODO: navigate to Doc Detail (Screen 2) when it lands.
           }}
