@@ -234,17 +234,9 @@ export function FilterSheet<K extends string>({
                 borderTopRightRadius: 24,
               }}
             >
-              {/* Drag handle */}
-              <View style={{ alignItems: "center", paddingTop: 8 }}>
-                <View
-                  style={{
-                    width: 40,
-                    height: 4,
-                    borderRadius: 2,
-                    backgroundColor: t.border.default,
-                  }}
-                />
-              </View>
+              {/* No drag handle: this sheet isn't draggable (dismiss via the X
+                  or the backdrop), so a grabber would imply an affordance that
+                  doesn't exist and confuse users. */}
 
               {/* Title row */}
               <View style={sheetStyles.titleRow}>
@@ -378,7 +370,7 @@ const sheetStyles = StyleSheet.create({
   root: { flex: 1 },
   titleRow: {
     paddingHorizontal: 24,
-    paddingTop: 16,
+    paddingTop: 24,
     paddingBottom: 4,
     flexDirection: "row",
     alignItems: "center",
