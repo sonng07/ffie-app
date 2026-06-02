@@ -30,6 +30,18 @@ cd design-system-preview && npm install
 npm run dev | build | start | lint   # `next lint` is the only lint in the repo
 ```
 
+## Build & release (iOS / TestFlight)
+
+The mobile app ships to TestFlight via **EAS Build** (cloud build + signing — no local Xcode needed). Profiles live in `mobile/eas.json` (`development`, `preview`, `production`; `appVersionSource: "remote"`, so EAS owns the build number, not `app.json`'s `buildNumber`). iOS identity is in `app.json`: `ios.bundleIdentifier` = `fr.ffie.app` (permanent once published — don't change casually), and `extra.eas.projectId` links the Expo project (EAS-managed; `eas init` (re)writes it — don't hand-edit).
+
+```bash
+cd mobile
+eas build  --platform ios --profile production   # cloud build; prompts Apple login + generates signing
+eas submit --platform ios --latest               # upload .ipa to App Store Connect → TestFlight
+```
+
+Requires an active Apple Developer Program membership; the App Store Connect record/TestFlight live under whichever Apple team runs the build. `mobile/TESTFLIGHT.md` is the tester-facing "What to Test" copy (both onboarding paths, mocked v1 sign-in, intentional placeholders) — keep it current when flows change. Gate any build on `npx expo-doctor` (must be green) + `tsc --noEmit`.
+
 ## Design tokens are the single source of truth
 
 `project/design-system/tokens.ts` is the one design-system file; **never hardcode colors/spacing/radii/motion** — import from it. The `mobile` app aliases it as `@tokens` (configured in *both* `mobile/tsconfig.json` paths and `mobile/babel.config.js` module-resolver — keep them in sync), and `@/*` → `mobile/src/*`.
@@ -48,6 +60,7 @@ Shape: `primitives` (radii, motion.duration, sizes), `semantics` (spacing.gutter
 
 - **No fabricated real-world data.** Contact details, dues, document counts come from FFIE. Entries without real data render an explicit "details coming" placeholder rather than invented phone numbers (see `src/data/federations.ts` + `BecomeMemberScreen`). Honor this.
 - **Reduced motion is non-negotiable.** Gate every animation on `AccessibilityInfo.isReduceMotionEnabled()` (the `useReducedMotion` pattern) and snap to the end state when it's on. Animating `height` requires `useNativeDriver: false`; transforms/opacity use the native driver.
+- **Maps use the native `react-native-maps` module** (`BecomeMemberScreen`): Apple Maps on iOS (no key, works out of the box), Google Maps on Android. `app.json` ships a `REPLACE_WITH_ANDROID_GOOGLE_MAPS_API_KEY` placeholder — Android maps stay blank until a real key is supplied via env/secret (never commit the real key).
 - Match the surrounding screen's existing token usage, comment density, and iOS-HIG styling — these files are heavily, deliberately commented.
 
 # Project Configuration
