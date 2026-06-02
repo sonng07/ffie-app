@@ -7,7 +7,8 @@
 
 import React from "react";
 import { ChevronLeft, ChevronRight, Share2 } from "lucide-react-native";
-import { Linking, Pressable, ScrollView, Share, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, Share, StyleSheet, Text, View } from "react-native";
+import * as WebBrowser from "expo-web-browser";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { primitives, themes, type ThemeName } from "@tokens";
 import { ralewayFamily, displayFamily } from "@/theme/fonts";
@@ -42,6 +43,18 @@ export function NewsArticleScreen({
     } catch {
       // User dismissed the share sheet — no-op.
     }
+  };
+
+  // Open an in-article link in the native in-app browser (page sheet, slides
+  // up from the bottom), matching the Partners directory. Keeps the reader in
+  // the app — dismissing returns straight to the article.
+  const openInBrowser = (url: string) => {
+    WebBrowser.openBrowserAsync(url, {
+      presentationStyle: WebBrowser.WebBrowserPresentationStyle.PAGE_SHEET,
+      controlsColor: t.brand.accent,
+      toolbarColor: t.surface.default,
+      dismissButtonStyle: "close",
+    }).catch(() => {});
   };
 
   return (
@@ -183,7 +196,7 @@ export function NewsArticleScreen({
                       <Text
                         key={j}
                         style={spanStyle}
-                        onPress={seg.link && href ? () => Linking.openURL(href) : undefined}
+                        onPress={seg.link && href ? () => openInBrowser(href) : undefined}
                       >
                         {seg.text}
                       </Text>
