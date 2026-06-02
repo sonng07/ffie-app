@@ -17,7 +17,6 @@ import { LibrarySkeleton } from "./LibrarySkeleton";
 import { PartnersSkeleton } from "./PartnersSkeleton";
 import { ProfileSkeleton } from "./ProfileSkeleton";
 import { DiscoverSkeleton } from "./DiscoverSkeleton";
-import { BecomeMemberSkeleton } from "./BecomeMemberSkeleton";
 
 // How long the skeleton holds before the real screen appears. Short enough to
 // never feel like a stall, long enough for the shimmer to register as intent.
@@ -35,8 +34,6 @@ export function skeletonForTab(tab: TabKey, themeName: ThemeName): React.ReactNo
       return <ProfileSkeleton themeName={themeName} />;
     case "discover":
       return <DiscoverSkeleton themeName={themeName} />;
-    case "become-member":
-      return <BecomeMemberSkeleton themeName={themeName} />;
   }
 }
 

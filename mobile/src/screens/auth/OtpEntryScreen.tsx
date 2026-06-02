@@ -12,6 +12,7 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import {
+  Keyboard,
   Pressable,
   StyleSheet,
   Text,
@@ -62,7 +63,15 @@ export function OtpEntryScreen({
 
   return (
     <SafeAreaView edges={["top", "bottom"]} style={styles.root}>
-      <View style={styles.content}>
+      {/* Tapping any empty space claims the touch and dismisses the keyboard.
+          Inner controls (back chip, dots, resend) win the responder
+          negotiation for taps on themselves, so they keep working — and
+          tapping the dots re-focuses the hidden input, bringing it back. */}
+      <View
+        style={styles.content}
+        onStartShouldSetResponder={() => true}
+        onResponderRelease={() => Keyboard.dismiss()}
+      >
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Retour"

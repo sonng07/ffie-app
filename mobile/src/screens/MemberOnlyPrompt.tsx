@@ -2,21 +2,18 @@
 // route. Per the access-model tech requirement: gated routes redirect to a
 // login + apply CTA, never a 403.
 //
-// Persona context (Karim): "Why should I pay 600€ a year? Show me what I get."
-// So the page leads with concrete value (what unlocks), not a paywall scold.
-// Apply is primary; Sign in is the secondary affordance for existing members
-// who reached this surface by mistake.
-//
-// In v1 the CTAs are stubs — onApply / onSignIn callbacks are wired by the
-// caller (App.tsx) to navigate to Become-a-member / sign-in respectively.
+// "Demander l'adhésion" (primary) redirects to the Become-a-member page (the
+// federation directory) via onApply; "J'ai déjà un compte" (secondary) is the
+// sign-in affordance for existing members who reached this surface by mistake.
+// Both callbacks are wired by the caller (App.tsx).
 
 import React from "react";
 import { ChevronLeft, Lock } from "lucide-react-native";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { primitives, themes, type ThemeName } from "@tokens";
+import { themes, type ThemeName } from "@tokens";
 import { Button } from "@/components/ui/Button";
-import { ralewayFamily, displayFamily } from "@/theme/fonts";
+import { displayFamily } from "@/theme/fonts";
 
 export function MemberOnlyPrompt({
   themeName = "light",
@@ -110,26 +107,6 @@ export function MemberOnlyPrompt({
           </Text>
         </View>
 
-        {/* What members unlock — concrete, scannable, per Karim's "show me what I get". */}
-        <View
-          style={{
-            marginTop: 28,
-            padding: 16,
-            borderRadius: primitives.radii.md,
-            backgroundColor: themeName === "dark" ? t.surface.raised : t.surface.subtle,
-            borderWidth: 1,
-            borderColor: t.border.subtle,
-          }}
-        >
-          <Text style={{ fontSize: 13, fontFamily: ralewayFamily("600"), fontWeight: "600", color: t.text.body, marginBottom: 8 }}>
-            Ce que les adhérents obtiennent
-          </Text>
-          <Unlock label="Bibliothèque technique complète (NF C 15-100, RE 2020, circulaires Consuel…)" themeName={themeName} />
-          <Unlock label="Cache hors-ligne complet qui fonctionne sur chantier, sans réseau" themeName={themeName} />
-          <Unlock label="Ressources didactiques & tutoriels vidéo" themeName={themeName} />
-          <Unlock label="Calculateurs techniques (dimensionnement, puissance, normes)" themeName={themeName} />
-        </View>
-
         {/* Spacer pushes actions to bottom for one-handed reach. */}
         <View style={{ flex: 1 }} />
 
@@ -157,15 +134,5 @@ export function MemberOnlyPrompt({
         </View>
       </ScrollView>
     </SafeAreaView>
-  );
-}
-
-function Unlock({ label, themeName }: { label: string; themeName: ThemeName }) {
-  const t = themes[themeName];
-  return (
-    <View style={{ flexDirection: "row", alignItems: "flex-start", columnGap: 8, marginTop: 6 }}>
-      <Text style={{ fontSize: 13, color: t.brand.accent, fontFamily: ralewayFamily("700"), fontWeight: "700", lineHeight: 20 }}>·</Text>
-      <Text style={{ fontSize: 13, color: t.text.muted, flex: 1, lineHeight: 20 }}>{label}</Text>
-    </View>
   );
 }

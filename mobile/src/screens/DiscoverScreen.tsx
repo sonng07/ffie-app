@@ -1,20 +1,28 @@
 // Trades tab — the public discovery surface for guests (Karim + Léa).
 //
-// WBS Epic 4 ("Discover the professions"). Laid out to mirror the client
-// careers page (ffie.fr/les-metiers-de-lelectricite/metiers-et-formations)
-// section-by-section:
-//   1. Title + the client's intro paragraph (verbatim).
-//   2. Explore the field — the 5 domains as an ACCORDION (title + "+").
-//   3. Hero illustration (placeholder for FFIE's branded artwork).
-//   4. Two feature cards — "7 Reasons…" and the "kit professions".
-//   5. "Professions of tomorrow" — heading + intro + a 2-column TRAINING grid
+// A segmented control under the large title splits the tab into three segments,
+// mirroring the News / Partners tabs' toggle:
+//   • Métiers      — the careers content (the original Discover screen, below).
+//   • Vidéos       — multimedia content (FFIE-VIDEO-01, 🔵 Phase 1). The player
+//                    and content aren't wired up yet, so this is an honest
+//                    "coming" shell for now — it's in scope, just not built.
+//   • Calculateurs — technical calculation tools (FFIE-CALC-01/02, 🟢 Phase 2,
+//                    and member-only). Deferred to a later release: a blank
+//                    placeholder that says so explicitly.
+//
+// The "Métiers" segment (TradesBody) mirrors the client careers page
+// (ffie.fr/les-metiers-de-lelectricite/metiers-et-formations) section-by-section:
+//   1. The client's intro paragraph (verbatim).
+//   2. Explore the field — the 5 domains as tappable rows opening a detail sheet.
+//   3. Two feature cards — "7 Reasons…" and the "kit professions".
+//   4. "Professions of tomorrow" — heading + intro + a 2-column TRAINING grid
 //      + a "See more training" button.
 //
-// Scope: kept to FFIE-TRADES-01 (career profiles + educational content). All
+// Scope: Métiers is FFIE-TRADES-01 (career profiles + educational content). All
 // imagery is placeholder (see data/trades.ts); links open externally (P6).
 
-import React, { useState } from "react";
-import { ArrowRight, ChevronRight, X } from "lucide-react-native";
+import React, { useEffect, useRef, useState } from "react";
+import { ArrowRight, Calculator, ChevronRight, PlayCircle, X, type LucideIcon } from "lucide-react-native";
 import {
   Modal,
   Pressable,
@@ -25,11 +33,15 @@ import {
   useWindowDimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { NavigationContainer, useNavigationContainerRef, StackActions } from "@react-navigation/native";
+import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { primitives, themes, type ThemeName } from "@tokens";
 import { ralewayFamily, displayFamily } from "@/theme/fonts";
 import { GUTTER, LargeTitleHeader, useGroupedColors } from "@/components/ui/ios";
 import { RemoteImage } from "@/components/ui/RemoteImage";
+import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
+import { TrainingDetailScreen } from "./TrainingDetailScreen";
 import {
   DOMAINS,
   FEATURES,
@@ -42,17 +54,220 @@ import {
   type Training,
 } from "@/data/trades";
 
+// The Trades tab is a self-contained native stack (Feed → Formation), exactly
+// like the News tab: tapping a formation card pushes the reader, which gets the
+// platform back affordances for free (iOS left-edge swipe, Android system back).
+// Routes carry only the formation id — react-navigation params must be
+// serialisable, so the reader resolves the Training from TRAININGS by id.
+type TradesStackParamList = {
+  Feed: undefined;
+  Formation: { id: string };
+};
+
+const Stack = createNativeStackNavigator<TradesStackParamList>();
+
 const GRID_GAP = 14;
 
+// The three segments inside the Trades tab. "trades" is the careers content;
+// "videos" and "calculators" are placeholder shells (see header comment for the
+// phase / scope of each). A segmented control at the top toggles between them,
+// like the News and Partners tabs.
+type TradesTab = "trades" | "videos" | "calculators";
+
+// Large-title text per segment (the header re-titles like the News tab does).
+const TAB_TITLES: Record<TradesTab, string> = {
+  trades: "Métiers",
+  videos: "Vidéos",
+  calculators: "Calculateurs",
+};
+
 export function DiscoverScreen({
+  themeName = "light",
+  resetSignal,
+}: {
+  themeName?: ThemeName;
+  /** Incremented by the shell when the Trades tab is re-tapped while already
+   *  active. We use it to pop the stack back to the grid from an open reader. */
+  resetSignal?: number;
+}) {
+  const reducedMotion = useReducedMotion();
+  const navRef = useNavigationContainerRef<TradesStackParamList>();
+
+  // Re-tapping the active Trades tab pops the formation reader back to the grid.
+  // Skip the first run (mount) so we only react to genuine re-taps.
+  const isFirstResetRun = useRef(true);
+  useEffect(() => {
+    if (isFirstResetRun.current) {
+      isFirstResetRun.current = false;
+      return;
+    }
+    if (navRef.isReady() && navRef.canGoBack()) {
+      navRef.dispatch(StackActions.popToTop());
+    }
+  }, [resetSignal, navRef]);
+
+  return (
+    <NavigationContainer ref={navRef}>
+      <Stack.Navigator
+        screenOptions={{
+          headerShown: false, // each screen draws its own iOS-HIG header
+          // Reduced motion is non-negotiable (P5): collapse the push/pop
+          // transition to an instant cut. The left-edge swipe-back gesture
+          // stays enabled either way — it's an input, not decorative motion.
+          animation: reducedMotion ? "none" : "default",
+        }}
+      >
+        <Stack.Screen name="Feed">
+          {({ navigation }) => (
+            <DiscoverFeed
+              themeName={themeName}
+              onTrainingPress={(id) => navigation.navigate("Formation", { id })}
+            />
+          )}
+        </Stack.Screen>
+
+        <Stack.Screen name="Formation">
+          {({ navigation, route }) => (
+            <FormationRoute
+              id={route.params.id}
+              themeName={themeName}
+              onBack={() => navigation.goBack()}
+              // Prev/next replaces the current formation: back (button or swipe)
+              // still returns to the grid and the reader remounts at the top.
+              onNavigateId={(id) => navigation.replace("Formation", { id })}
+            />
+          )}
+        </Stack.Screen>
+      </Stack.Navigator>
+    </NavigationContainer>
+  );
+}
+
+// FormationRoute — resolves the route's training id into the reader and computes
+// the prev/next neighbours in grid order (prev is null on the first formation,
+// next on the last → the in-reader nav buttons disable there).
+function FormationRoute({
+  id,
+  themeName,
+  onBack,
+  onNavigateId,
+}: {
+  id: string;
+  themeName: ThemeName;
+  onBack: () => void;
+  onNavigateId: (id: string) => void;
+}) {
+  const idx = TRAININGS.findIndex((tr) => tr.id === id);
+  const training = idx >= 0 ? TRAININGS[idx] : null;
+
+  // Defensive: an unknown id (shouldn't happen) just pops back to the grid.
+  useEffect(() => {
+    if (!training) onBack();
+  }, [training, onBack]);
+  if (!training) return null;
+
+  const prev = idx > 0 ? TRAININGS[idx - 1] : null;
+  const next = idx < TRAININGS.length - 1 ? TRAININGS[idx + 1] : null;
+
+  return (
+    <TrainingDetailScreen
+      training={training}
+      themeName={themeName}
+      onBack={onBack}
+      prev={prev}
+      next={next}
+      onNavigate={(tr) => onNavigateId(tr.id)}
+    />
+  );
+}
+
+// DiscoverFeed — the Trades tab feed itself: the segmented control (Métiers /
+// Vidéos / Calculateurs) and, on the Métiers segment, the careers content. Owns
+// the active-segment state; stays mounted beneath a pushed formation reader
+// (native stack), so scroll and segment survive the round-trip.
+function DiscoverFeed({
   themeName = "light",
   onTrainingPress,
 }: {
   themeName?: ThemeName;
   onTrainingPress?: (id: string) => void;
 }) {
-  const t = themes[themeName];
   const c = useGroupedColors(themeName);
+
+  // Active segment. Switching to videos/calculators reveals a "coming" shell
+  // (neither feature is built yet — see ComingSoonView).
+  const [tab, setTab] = useState<TradesTab>("trades");
+
+  // Switching segment starts fresh at the top, matching News / Partners.
+  const scrollRef = useRef<ScrollView>(null);
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ y: 0, animated: false });
+  }, [tab]);
+
+  return (
+    <SafeAreaView edges={["top"]} style={{ flex: 1, backgroundColor: c.pageBg }}>
+      <ScrollView
+        ref={scrollRef}
+        contentContainerStyle={{ paddingBottom: 40 }}
+        showsVerticalScrollIndicator={false}
+      >
+        <LargeTitleHeader title={TAB_TITLES[tab]} themeName={themeName} />
+
+        {/* Segment toggle. Sits under the large title like an iOS segmented
+            control; Vidéos / Calculateurs reveal a "coming" shell (neither
+            feature is built yet). */}
+        <View style={{ paddingHorizontal: GUTTER, paddingTop: 6, paddingBottom: 4 }}>
+          <SegmentedControl
+            themeName={themeName}
+            value={tab}
+            options={[
+              { key: "trades", label: "Métiers" },
+              { key: "videos", label: "Vidéos" },
+              { key: "calculators", label: "Calculateurs" },
+            ]}
+            onChange={setTab}
+          />
+        </View>
+
+        {tab === "videos" ? (
+          // FFIE-VIDEO-01 (🔵 Phase 1): in scope, player/content not wired yet.
+          <ComingSoonView
+            themeName={themeName}
+            icon={PlayCircle}
+            title="Vidéos bientôt disponibles"
+            body="Le lecteur vidéo intégré et les contenus multimédias de la fédération arriveront ici — toujours avec sous-titres."
+            badge="Phase 1 · en cours"
+          />
+        ) : tab === "calculators" ? (
+          // FFIE-CALC-01/02 (🟢 Phase 2, réservé aux adhérents): deferred.
+          <ComingSoonView
+            themeName={themeName}
+            icon={Calculator}
+            title="Calculateurs techniques"
+            body="Les outils de calcul métier (puissance, dimensionnement, normes) seront réservés aux adhérents dans une prochaine version."
+            badge="Phase 2 · prochaine version"
+          />
+        ) : (
+          <TradesBody themeName={themeName} onTrainingPress={onTrainingPress} />
+        )}
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// TradesBody — the "Métiers" segment: the original careers content, section by
+// section (intro, domain rows, feature cards, training grid). Owns the domain
+// detail modal's open state.
+// ---------------------------------------------------------------------------
+function TradesBody({
+  themeName,
+  onTrainingPress,
+}: {
+  themeName: ThemeName;
+  onTrainingPress?: (id: string) => void;
+}) {
+  const t = themes[themeName];
   const { width: screenW } = useWindowDimensions();
 
   // The domain whose detail modal is open (null = closed). Tapping a row opens
@@ -63,79 +278,76 @@ export function DiscoverScreen({
   const colW = (screenW - GUTTER * 2 - GRID_GAP) / 2;
 
   return (
-    <SafeAreaView edges={["top"]} style={{ flex: 1, backgroundColor: c.pageBg }}>
-      <ScrollView contentContainerStyle={{ paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
-        {/* 1. Title + client intro. */}
-        <LargeTitleHeader title="Métiers" themeName={themeName} />
-        <View style={{ paddingHorizontal: GUTTER, paddingTop: 2 }}>
-          <Text style={{ color: t.text.muted, fontSize: 15, lineHeight: 22 }}>{TRADE_INTRO}</Text>
-        </View>
+    <>
+      {/* 1. Client intro. */}
+      <View style={{ paddingHorizontal: GUTTER, paddingTop: 2 }}>
+        <Text style={{ color: t.text.muted, fontSize: 15, lineHeight: 22 }}>{TRADE_INTRO}</Text>
+      </View>
 
-        {/* 2. Explore the field — domain rows that open a detail modal. */}
-        <View style={{ paddingHorizontal: GUTTER, marginTop: 22 }}>
-          <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: t.border.default }} />
-          {DOMAINS.map((domain) => (
-            <DomainRow
-              key={domain.id}
-              domain={domain}
-              themeName={themeName}
-              onPress={() => setActiveDomain(domain)}
-            />
-          ))}
-        </View>
+      {/* 2. Explore the field — domain rows that open a detail modal. */}
+      <View style={{ paddingHorizontal: GUTTER, marginTop: 22 }}>
+        <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: t.border.default }} />
+        {DOMAINS.map((domain) => (
+          <DomainRow
+            key={domain.id}
+            domain={domain}
+            themeName={themeName}
+            onPress={() => setActiveDomain(domain)}
+          />
+        ))}
+      </View>
 
-        {/* 3. Feature cards — "7 Reasons…" and the kit. */}
-        <View style={{ paddingHorizontal: GUTTER, marginTop: 24, rowGap: 14 }}>
-          {FEATURES.map((feature) => (
-            <FeatureCard key={feature.id} feature={feature} themeName={themeName} />
-          ))}
-        </View>
+      {/* 3. Feature cards — "7 Reasons…" and the kit. */}
+      <View style={{ paddingHorizontal: GUTTER, marginTop: 24, rowGap: 14 }}>
+        {FEATURES.map((feature) => (
+          <FeatureCard key={feature.id} feature={feature} themeName={themeName} />
+        ))}
+      </View>
 
-        {/* 4. Professions of tomorrow — heading + intro + training grid. */}
-        <View style={{ paddingHorizontal: GUTTER, marginTop: 34 }}>
-          <Text
-            accessibilityRole="header"
-            style={{
-              color: t.text.body,
-              fontSize: 21,
-              lineHeight: 27,
-              fontFamily: displayFamily("700"),
-              fontWeight: "700",
-              letterSpacing: -0.4,
-            }}
-          >
-            {TRAINING_HEADING}
-          </Text>
-          <Text style={{ color: t.text.muted, fontSize: 14, lineHeight: 21, marginTop: 12 }}>
-            {TRAINING_INTRO}
-          </Text>
-        </View>
-
-        <View
+      {/* 4. Professions of tomorrow — heading + intro + training grid. */}
+      <View style={{ paddingHorizontal: GUTTER, marginTop: 34 }}>
+        <Text
+          accessibilityRole="header"
           style={{
-            flexDirection: "row",
-            flexWrap: "wrap",
-            columnGap: GRID_GAP,
-            rowGap: 18,
-            paddingHorizontal: GUTTER,
-            marginTop: 20,
+            color: t.text.body,
+            fontSize: 21,
+            lineHeight: 27,
+            fontFamily: displayFamily("700"),
+            fontWeight: "700",
+            letterSpacing: -0.4,
           }}
         >
-          {TRAININGS.map((training) => (
-            <TrainingCard
-              key={training.id}
-              training={training}
-              width={colW}
-              themeName={themeName}
-              onPress={() => onTrainingPress?.(training.id)}
-            />
-          ))}
-        </View>
+          {TRAINING_HEADING}
+        </Text>
+        <Text style={{ color: t.text.muted, fontSize: 14, lineHeight: 21, marginTop: 12 }}>
+          {TRAINING_INTRO}
+        </Text>
+      </View>
 
-        <View style={{ alignItems: "center", marginTop: 22 }}>
-          <SeeMoreButton themeName={themeName} />
-        </View>
-      </ScrollView>
+      <View
+        style={{
+          flexDirection: "row",
+          flexWrap: "wrap",
+          columnGap: GRID_GAP,
+          rowGap: 18,
+          paddingHorizontal: GUTTER,
+          marginTop: 20,
+        }}
+      >
+        {TRAININGS.map((training) => (
+          <TrainingCard
+            key={training.id}
+            training={training}
+            width={colW}
+            themeName={themeName}
+            onPress={() => onTrainingPress?.(training.id)}
+          />
+        ))}
+      </View>
+
+      <View style={{ alignItems: "center", marginTop: 22 }}>
+        <SeeMoreButton themeName={themeName} />
+      </View>
 
       {/* Domain detail — full-screen sheet, opened from a domain row. */}
       <DomainDetailModal
@@ -143,7 +355,100 @@ export function DiscoverScreen({
         themeName={themeName}
         onClose={() => setActiveDomain(null)}
       />
-    </SafeAreaView>
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// ComingSoonView — the blank "coming" shell shared by the Vidéos and
+// Calculateurs segments. Centered icon in a tinted circle, a title, an honest
+// one-line explanation, and a phase badge that tells the user exactly when to
+// expect it. No motion — purely a static empty state.
+// ---------------------------------------------------------------------------
+function ComingSoonView({
+  themeName,
+  icon: Icon,
+  title,
+  body,
+  badge,
+}: {
+  themeName: ThemeName;
+  icon: LucideIcon;
+  title: string;
+  body: string;
+  badge: string;
+}) {
+  const t = themes[themeName];
+  return (
+    <View style={{ paddingHorizontal: GUTTER, paddingTop: 72, alignItems: "center" }}>
+      <View
+        style={{
+          width: 72,
+          height: 72,
+          borderRadius: 36,
+          backgroundColor: t.surface.subtle,
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <Icon size={32} color={t.brand.accent} strokeWidth={1.75} />
+      </View>
+
+      <Text
+        accessibilityRole="header"
+        style={{
+          color: t.text.body,
+          fontSize: 21,
+          lineHeight: 27,
+          fontFamily: displayFamily("700"),
+          fontWeight: "700",
+          letterSpacing: -0.4,
+          textAlign: "center",
+          marginTop: 20,
+        }}
+      >
+        {title}
+      </Text>
+
+      <Text
+        style={{
+          color: t.text.muted,
+          fontSize: 14.5,
+          lineHeight: 22,
+          textAlign: "center",
+          marginTop: 10,
+          maxWidth: 320,
+        }}
+      >
+        {body}
+      </Text>
+
+      {/* Phase badge — tells the user which release to expect this in. */}
+      <View
+        style={{
+          marginTop: 18,
+          backgroundColor: t.surface.subtle,
+          borderWidth: 1,
+          borderColor: t.border.subtle,
+          borderRadius: primitives.radii.full,
+          paddingHorizontal: 12,
+          paddingVertical: 6,
+        }}
+      >
+        <Text
+          style={{
+            color: t.brand.accent,
+            fontSize: 12,
+            fontFamily: ralewayFamily("700"),
+            fontWeight: "700",
+            letterSpacing: 0.4,
+            textTransform: "uppercase",
+          }}
+        >
+          {badge}
+        </Text>
+      </View>
+    </View>
   );
 }
 
@@ -467,6 +772,10 @@ function FeatureCard({ feature, themeName }: { feature: Feature; themeName: Them
 
 // ---------------------------------------------------------------------------
 // TrainingCard — a 2-up grid card: image, title, short blurb, "Learn more →".
+//
+// A card is tappable only once it has reader content (`detail`). Formations
+// FFIE hasn't documented stay NON-interactive: no press affordance, no "En
+// savoir plus", slightly muted — they read as informational, not a dead link.
 // ---------------------------------------------------------------------------
 function TrainingCard({
   training,
@@ -481,21 +790,12 @@ function TrainingCard({
 }) {
   const t = themes[themeName];
   const c = useGroupedColors(themeName);
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={`${training.title}. ${training.blurb}`}
-      onPress={onPress}
-      style={({ pressed }) => ({
-        width,
-        backgroundColor: pressed ? t.border.subtle : c.cardBg,
-        borderRadius: primitives.radii.lg,
-        borderWidth: c.cardBorder ? 1 : 0,
-        borderColor: c.cardBorder,
-        overflow: "hidden",
-        transform: pressed ? [{ scale: 0.985 }] : [{ scale: 1 }],
-      })}
-    >
+  const tappable = !!training.detail && !!onPress;
+
+  // Shared inner content (image + text). The "En savoir plus" affordance only
+  // shows on tappable cards.
+  const inner = (
+    <>
       <RemoteImage
         seed={training.seed}
         uri={training.imageUrl}
@@ -522,10 +822,51 @@ function TrainingCard({
         <Text style={{ color: t.text.muted, fontSize: 12.5, lineHeight: 18, marginTop: 6 }}>
           {training.blurb}
         </Text>
-        <View style={{ marginTop: 12 }}>
-          <LearnMore themeName={themeName} label="En savoir plus" />
-        </View>
+        {tappable ? (
+          <View style={{ marginTop: 12 }}>
+            <LearnMore themeName={themeName} label="En savoir plus" />
+          </View>
+        ) : null}
       </View>
+    </>
+  );
+
+  // Non-tappable card — a plain View, slightly faded, no button semantics.
+  if (!tappable) {
+    return (
+      <View
+        accessibilityLabel={`${training.title}. ${training.blurb}`}
+        style={{
+          width,
+          backgroundColor: c.cardBg,
+          borderRadius: primitives.radii.lg,
+          borderWidth: c.cardBorder ? 1 : 0,
+          borderColor: c.cardBorder,
+          overflow: "hidden",
+          opacity: 0.6,
+        }}
+      >
+        {inner}
+      </View>
+    );
+  }
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${training.title}. ${training.blurb}`}
+      onPress={onPress}
+      style={({ pressed }) => ({
+        width,
+        backgroundColor: pressed ? t.border.subtle : c.cardBg,
+        borderRadius: primitives.radii.lg,
+        borderWidth: c.cardBorder ? 1 : 0,
+        borderColor: c.cardBorder,
+        overflow: "hidden",
+        transform: pressed ? [{ scale: 0.985 }] : [{ scale: 1 }],
+      })}
+    >
+      {inner}
     </Pressable>
   );
 }

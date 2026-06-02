@@ -31,6 +31,7 @@ import { ralewayFamily, displayFamily } from "@/theme/fonts";
 import { GUTTER, LargeTitleHeader, useGroupedColors } from "@/components/ui/ios";
 import { RemoteImage } from "@/components/ui/RemoteImage";
 import { FilterButton, FilterSheet, type FilterOption } from "@/components/ui/FilterControls";
+import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { ARTICLES, type Article, type NewsCategory } from "@/data/news";
 import { NavigationContainer, useNavigationContainerRef, StackActions } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
@@ -38,6 +39,8 @@ import { canAccess, useRole } from "@/auth/roleContext";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
 import { NewsArticleScreen } from "./NewsArticleScreen";
 import { MemberOnlyPrompt } from "./MemberOnlyPrompt";
+import { EventsView } from "./EventsView";
+import { EventDetailScreen } from "./EventDetailScreen";
 
 // Categories users can filter the feed by. Multi-select: an empty set shows
 // everything, otherwise only the chosen types appear. Keep in sync with the
@@ -54,6 +57,11 @@ const CATEGORY_OPTIONS: FilterOption<NewsCategory>[] = [
 const COL_GAP = 14;
 const ROW_GAP = 18;
 
+// The two top-level views inside the News tab. "news" is the article feed;
+// "events" is a placeholder for the upcoming Events feature (blank for now).
+// A segmented control at the top of the feed toggles between them.
+type NewsTab = "news" | "events";
+
 // The News tab is a native stack so the article reader gets the platform's
 // real back affordances for free: iOS's left-edge swipe-back and Android's
 // system back (button or gesture-nav swipe) both pop the stack natively — no
@@ -67,6 +75,7 @@ type NewsStackParamList = {
   Feed: undefined;
   Article: { id: number };
   Locked: { id: number };
+  Event: { id: number };
 };
 
 const Stack = createNativeStackNavigator<NewsStackParamList>();
@@ -76,6 +85,7 @@ export function NewsScreen({
   onApply,
   onSignIn,
   resetSignal,
+  onDetailChange,
 }: {
   themeName?: ThemeName;
   onApply?: () => void;
@@ -83,6 +93,10 @@ export function NewsScreen({
   /** Incremented by the shell when the News tab is re-tapped while already
    *  active. We use it to pop the stack back to the feed from an open article. */
   resetSignal?: number;
+  /** Fired with `true` when a sub-view (article reader, event, member-only
+   *  prompt) is pushed, `false` back on the feed. The shell uses it to hide the
+   *  floating account avatar on detail pages — it belongs on main pages only. */
+  onDetailChange?: (isDetail: boolean) => void;
 }) {
   const reducedMotion = useReducedMotion();
   const navRef = useNavigationContainerRef<NewsStackParamList>();
@@ -101,7 +115,16 @@ export function NewsScreen({
   }, [resetSignal, navRef]);
 
   return (
-    <NavigationContainer ref={navRef}>
+    <NavigationContainer
+      ref={navRef}
+      // Report whether we're on a pushed sub-view (anything but the feed) so
+      // the shell can hide the floating avatar on detail pages.
+      onStateChange={(state) => {
+        if (!state) return;
+        const route = state.routes[state.index];
+        onDetailChange?.(route?.name !== "Feed");
+      }}
+    >
       <Stack.Navigator
         screenOptions={{
           headerShown: false, // each screen draws its own iOS-HIG header
@@ -117,6 +140,7 @@ export function NewsScreen({
               themeName={themeName}
               onOpenArticle={(id) => navigation.navigate("Article", { id })}
               onOpenLocked={(id) => navigation.navigate("Locked", { id })}
+              onOpenEvent={(id) => navigation.navigate("Event", { id })}
             />
           )}
         </Stack.Screen>
@@ -142,6 +166,16 @@ export function NewsScreen({
               onBack={() => navigation.goBack()}
               onApply={onApply}
               onSignIn={onSignIn}
+            />
+          )}
+        </Stack.Screen>
+
+        <Stack.Screen name="Event">
+          {({ navigation, route }) => (
+            <EventDetailScreen
+              id={route.params.id}
+              themeName={themeName}
+              onBack={() => navigation.goBack()}
             />
           )}
         </Stack.Screen>
@@ -195,10 +229,12 @@ function NewsFeed({
   themeName = "light",
   onOpenArticle,
   onOpenLocked,
+  onOpenEvent,
 }: {
   themeName?: ThemeName;
   onOpenArticle: (id: number) => void;
   onOpenLocked: (id: number) => void;
+  onOpenEvent: (id: number) => void;
 }) {
   const t = themes[themeName];
   const c = useGroupedColors(themeName);
@@ -206,6 +242,10 @@ function NewsFeed({
   const { width: screenW } = useWindowDimensions();
   const [filterOpen, setFilterOpen] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState<Set<NewsCategory>>(new Set());
+
+  // Toggle between the article feed ("news") and the Events view (weekly
+  // calendar + event list). Both render within this same feed scroll.
+  const [tab, setTab] = useState<NewsTab>("news");
 
   // Visual-only pagination. The arrows move the indicator and toggle their own
   // disabled state at the ends; they don't actually re-page the feed yet.
@@ -242,8 +282,30 @@ function NewsFeed({
   return (
     <SafeAreaView edges={["top"]} style={{ flex: 1, backgroundColor: c.pageBg }}>
       <ScrollView contentContainerStyle={{ paddingBottom: 32 }}>
-        <LargeTitleHeader title="Actualités" themeName={themeName} />
+        <LargeTitleHeader
+          title={tab === "news" ? "Actualités" : "Événements"}
+          themeName={themeName}
+        />
 
+        {/* News / Events toggle. Sits under the large title like an iOS
+            segmented control; switching to Events reveals a blank placeholder
+            (the feature is not built yet). */}
+        <View style={{ paddingHorizontal: GUTTER, paddingTop: 6, paddingBottom: 4 }}>
+          <SegmentedControl
+            themeName={themeName}
+            value={tab}
+            options={[
+              { key: "news", label: "Actualités" },
+              { key: "events", label: "Événements" },
+            ]}
+            onChange={setTab}
+          />
+        </View>
+
+        {tab === "events" ? (
+          <EventsView themeName={themeName} onOpenEvent={onOpenEvent} onOpenLocked={onOpenLocked} />
+        ) : (
+        <>
         <View style={{ paddingHorizontal: GUTTER, paddingTop: 4 }}>
           {/* Featured article — always shown, unaffected by the filter. */}
           {hero ? (
@@ -351,6 +413,8 @@ function NewsFeed({
           onNext={() => setPage((p) => Math.min(TOTAL_PAGES, p + 1))}
           onJump={(p) => setPage(p)}
         />
+        </>
+        )}
       </ScrollView>
 
       <FilterSheet

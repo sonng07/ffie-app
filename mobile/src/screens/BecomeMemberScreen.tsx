@@ -27,6 +27,7 @@ import {
   Printer,
   Search,
   ShieldCheck,
+  X,
   type LucideIcon,
 } from "lucide-react-native";
 import {
@@ -39,16 +40,22 @@ import {
   Platform,
   Pressable,
   ScrollView,
+  StyleSheet,
   Text,
   TextInput,
   useWindowDimensions,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import MapView, { Marker } from "react-native-maps";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import {
+  FederationMap,
+  type FederationMapHandle,
+  type FederationPin,
+} from "@/components/ui/FederationMap";
 import { primitives, semantics, themes, type ThemeName } from "@tokens";
 import { ralewayFamily, displayFamily } from "@/theme/fonts";
 import { SearchClearButton, useGroupedColors } from "@/components/ui/ios";
+import { Button } from "@/components/ui/Button";
 import {
   FEDERATIONS,
   FEDERATIONS_WITH_COORDS,
@@ -68,6 +75,16 @@ const FRANCE_REGION = {
   longitudeDelta: 9.5,
 };
 const MAP_HEIGHT = 220;
+
+// One pin per federation that has a coordinate. Built once — the source list is
+// static. `area` is the headline (e.g. department), `name` the full label.
+const FEDERATION_PINS: FederationPin[] = FEDERATIONS_WITH_COORDS.map((f) => ({
+  id: f.id,
+  lat: f.lat as number,
+  lng: f.lng as number,
+  title: f.area,
+  description: f.name,
+}));
 
 // Top padding for the page content above the safe-area inset. On Android we
 // match the Debug chip's offset (its TOP_GAP = 24) so the title lines up with
@@ -359,12 +376,21 @@ function FederationRow({
 
 export function BecomeMemberScreen({
   themeName = "light",
+  onClose,
+  onLogin,
 }: {
   themeName?: ThemeName;
+  // When opened as a modal (from the floating Adhérer button) a close button
+  // is shown top-right. Omitted when the screen is hosted in a tab.
+  onClose?: () => void;
+  // When set, a "Déjà adhérent ? Se connecter" button is pinned to the bottom
+  // for existing members to reach the email → OTP sign-in. Omitted in a tab.
+  onLogin?: () => void;
 }) {
   const t = themes[themeName];
   const c = useGroupedColors(themeName);
   const reducedMotion = useReducedMotion();
+  const insets = useSafeAreaInsets();
   const { height: windowHeight } = useWindowDimensions();
   const [query, setQuery] = useState("");
   // Accordion: at most one federation expanded at a time. Opening a new row
@@ -373,6 +399,9 @@ export function BecomeMemberScreen({
   // Show a short list by default; "Show more" reveals the rest. A live search
   // bypasses the cap so every match is visible.
   const [showAll, setShowAll] = useState(false);
+  // Measured height of the pinned login footer (when shown), so the floating
+  // "back to top" button can sit above it instead of overlapping it.
+  const [footerH, setFooterH] = useState(0);
 
   // The federation list scrolls inside this fixed-height window so the page can
   // still scroll as a whole around it (nested scroll). ~half the screen.
@@ -478,7 +507,7 @@ export function BecomeMemberScreen({
   // Recenter the map on whichever federation is open. Fires on every openId
   // change, so opening a row, switching to another, or tapping a pin all move
   // the map to that location. Closing a row leaves the map where it is.
-  const mapRef = React.useRef<MapView>(null);
+  const mapRef = React.useRef<FederationMapHandle>(null);
   React.useEffect(() => {
     if (openId == null) return;
     const f = FEDERATIONS.find((x) => x.id === openId);
@@ -515,6 +544,32 @@ export function BecomeMemberScreen({
   return (
     <SafeAreaView edges={["top"]} style={{ flex: 1, backgroundColor: c.pageBg }}>
       <View style={{ flex: 1 }}>
+      {/* Modal close — only when hosted as a slide-up (floating Adhérer CTA).
+          Sits top-right, clear of the left-aligned large title. */}
+      {onClose ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Fermer"
+          onPress={onClose}
+          hitSlop={10}
+          style={({ pressed }) => [
+            {
+              position: "absolute",
+              top: PAGE_TOP_PADDING,
+              right: GUTTER,
+              zIndex: 10,
+              width: 32,
+              height: 32,
+              borderRadius: 16,
+              alignItems: "center",
+              justifyContent: "center",
+              backgroundColor: pressed ? c.separator : c.cardBg,
+            },
+          ]}
+        >
+          <X size={18} color={t.text.muted} />
+        </Pressable>
+      ) : null}
       <ScrollView
         ref={pageRef}
         keyboardDismissMode="on-drag"
@@ -527,7 +582,15 @@ export function BecomeMemberScreen({
             window — each keeps its own gesture; the page scrolls everywhere
             else. */}
         {/* Large title + the requested subtitle */}
-        <View style={{ paddingHorizontal: GUTTER, paddingTop: PAGE_TOP_PADDING, paddingBottom: 6 }}>
+        <View
+          style={{
+            paddingHorizontal: GUTTER,
+            paddingTop: PAGE_TOP_PADDING,
+            paddingBottom: 6,
+            // Keep the title clear of the modal close button (top-right).
+            paddingRight: onClose ? 52 : GUTTER,
+          }}
+        >
           <Text
             accessibilityRole="header"
             style={{
@@ -559,22 +622,14 @@ export function BecomeMemberScreen({
             borderColor: c.cardBorder,
           }}
         >
-          <MapView
+          <FederationMap
             ref={mapRef}
             style={{ width: "100%", height: MAP_HEIGHT }}
             initialRegion={FRANCE_REGION}
+            pins={FEDERATION_PINS}
             accessibilityLabel="Carte des fédérations départementales"
-          >
-            {FEDERATIONS_WITH_COORDS.map((f) => (
-              <Marker
-                key={f.id}
-                coordinate={{ latitude: f.lat as number, longitude: f.lng as number }}
-                title={f.area}
-                description={f.name}
-                onPress={() => focusFederation(f.id)}
-              />
-            ))}
-          </MapView>
+            onPinPress={focusFederation}
+          />
         </View>
 
         {/* Search field — same affordance as the Library */}
@@ -781,14 +836,53 @@ export function BecomeMemberScreen({
       </ScrollView>
       </View>
 
+      {/* Pinned login footer — only when opened from the floating avatar. A
+          full-width boxed CTA opens the email → OTP sign-in popup; the muted
+          line above says who it's for. */}
+      {onLogin ? (
+        <View
+          onLayout={(e) => setFooterH(e.nativeEvent.layout.height)}
+          style={{
+            borderTopWidth: StyleSheet.hairlineWidth,
+            borderTopColor: c.separator,
+            backgroundColor: c.pageBg,
+            paddingHorizontal: GUTTER,
+            paddingTop: 12,
+            paddingBottom: insets.bottom + 12,
+          }}
+        >
+          <Text
+            style={{
+              color: t.text.muted,
+              fontSize: 13,
+              textAlign: "center",
+              marginBottom: 8,
+            }}
+          >
+            Déjà adhérent ?
+          </Text>
+          <Button
+            variant="primary"
+            size="lg"
+            fullWidth
+            themeName={themeName}
+            onPress={onLogin}
+            accessibilityLabel="Se connecter"
+          >
+            Se connecter
+          </Button>
+        </View>
+      ) : null}
+
       {/* Back to top — floats over the list once scrolled deep. The whole
-          button fades in/out (opacity only, no slide). */}
+          button fades in/out (opacity only, no slide). Lifted above the login
+          footer when it's present. */}
       <Animated.View
         pointerEvents={showBackToTop ? "box-none" : "none"}
         style={{
           position: "absolute",
           right: GUTTER,
-          bottom: 24,
+          bottom: 24 + footerH,
           opacity: backToTopAnim,
         }}
       >

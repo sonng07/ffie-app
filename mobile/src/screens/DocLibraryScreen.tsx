@@ -145,9 +145,12 @@ type Props = {
   /** Incremented by the shell when the Library tab is re-tapped while already
    *  active. Pops an open document back to the list. */
   resetSignal?: number;
+  /** Fired with `true` when a document detail is open, `false` back on the
+   *  list. The shell uses it to hide the floating avatar on detail pages. */
+  onDetailChange?: (isDetail: boolean) => void;
 };
 
-export function DocLibraryScreen({ themeName, density, offline, onDocPress, resetSignal }: Props) {
+export function DocLibraryScreen({ themeName, density, offline, onDocPress, resetSignal, onDetailChange }: Props) {
   void density; // grouped rows own their rhythm now
   const t = themes[themeName];
   const c = useGroupedColors(themeName);
@@ -155,6 +158,12 @@ export function DocLibraryScreen({ themeName, density, offline, onDocPress, rese
   const [filterOpen, setFilterOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState<Set<SavedFilterKey>>(new Set());
   const [selected, setSelected] = useState<Doc | null>(null);
+
+  // Tell the shell when a document detail is open so it can hide the floating
+  // avatar (main pages only).
+  useEffect(() => {
+    onDetailChange?.(selected !== null);
+  }, [selected, onDetailChange]);
 
   // Re-tapping the active Library tab pops an open document back to the list.
   // Skip the mount run so only genuine re-taps trigger it.

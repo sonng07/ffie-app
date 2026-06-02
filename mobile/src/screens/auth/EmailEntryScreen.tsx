@@ -18,6 +18,7 @@
 
 import React, { useState } from "react";
 import {
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -54,7 +55,15 @@ export function EmailEntryScreen({
         behavior={Platform.OS === "ios" ? "padding" : undefined}
         style={styles.flex}
       >
-        <View style={styles.content}>
+        {/* Tapping any empty space claims the touch and dismisses the
+            keyboard. Inner controls (back chip, field, CTA) win the responder
+            negotiation for taps on themselves, so they keep working — and
+            tapping the field re-focuses it, bringing the keyboard back. */}
+        <View
+          style={styles.content}
+          onStartShouldSetResponder={() => true}
+          onResponderRelease={() => Keyboard.dismiss()}
+        >
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Retour"
