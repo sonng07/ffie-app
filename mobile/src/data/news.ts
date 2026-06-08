@@ -18,16 +18,28 @@ export type NewsCategory = "Technical" | "Training" | "Communication" | "Economi
 export type RichSegment = { text: string; bold?: boolean; link?: boolean; url?: string };
 export type BodyBlock = string | RichSegment[];
 
+// A document attached to an article (NEWS-02: "the detailed view can display
+// text, images, AND associated documents"). These are the real FFIE files an
+// article references — surfaced as a first-class "Documents associés" list in
+// the reader, not just buried as inline body links. `kind` only drives the row
+// icon; everything opens in the in-app browser for now (download lands with
+// FFIE-DOC-03).
+export type ArticleAttachment = { label: string; url: string; kind?: "pdf" | "doc" };
+
 export type Article = {
   id: number;
   category: NewsCategory;
   title: string;
   excerpt: string;
   body: BodyBlock[]; // paragraphs (string) or rich lines (segment arrays)
-  date: string; // display string (Europe/Paris); backend will send ISO
+  // Sortable publish date, ISO yyyy-mm-dd (the shape the backend will send).
+  // This is the source of truth for feed order; `date` is its display form.
+  isoDate: string;
+  date: string; // display string (Europe/Paris), derived from isoDate
   readMinutes: number;
   memberOnly: boolean;
   imageUrl?: string; // real FFIE CMS image; falls back to a placeholder if absent
+  attachments?: ArticleAttachment[]; // documents the article links to (NEWS-02)
 };
 
 // Content mirrors the live FFIE actualités articles, pulled from each
@@ -39,7 +51,7 @@ export type Article = {
 // Categories are NOT exposed on the FFIE detail pages, so they're best-guess
 // mappings to our 4-tag taxonomy (Économique → Economical, Formation →
 // Training, federation/event news → Communication).
-export const ARTICLES: Article[] = [
+const ARTICLES_RAW: Article[] = [
   {
     id: 1,
     category: "Communication",
@@ -65,6 +77,7 @@ export const ARTICLES: Article[] = [
         { text: " - FFB Île-de-France - Rencontre régionale ÎLE-DE-FRANCE" },
       ],
     ],
+    isoDate: "2026-01-01",
     date: "01.01.2026",
     readMinutes: 3,
     memberOnly: false,
@@ -89,6 +102,7 @@ export const ARTICLES: Article[] = [
         },
       ],
     ],
+    isoDate: "2026-05-29",
     date: "29.05.2026",
     readMinutes: 3,
     memberOnly: false,
@@ -113,10 +127,19 @@ export const ARTICLES: Article[] = [
         },
       ],
     ],
+    isoDate: "2026-05-29",
     date: "29.05.2026",
     readMinutes: 3,
     memberOnly: false,
     imageUrl: "https://www.ffie.fr/fileadmin/user_upload/ELECTRIFICATION_WEB.png",
+    // The tribune referenced inline above, surfaced as an attached document.
+    attachments: [
+      {
+        label: "Tribune — Équipe de France de l'Électrification (26 mai)",
+        url: "https://www.ffie.fr/fileadmin/DOCUMENTATION/PACTE_Equipe_de_France_Electrification.pdf",
+        kind: "pdf",
+      },
+    ],
   },
   {
     id: 4,
@@ -138,6 +161,7 @@ export const ARTICLES: Article[] = [
         },
       ],
     ],
+    isoDate: "2026-05-29",
     date: "29.05.2026",
     readMinutes: 3,
     memberOnly: false,
@@ -175,10 +199,24 @@ export const ARTICLES: Article[] = [
         { text: ")." },
       ],
     ],
+    isoDate: "2026-05-29",
     date: "29.05.2026",
     readMinutes: 3,
     memberOnly: false,
     imageUrl: "https://www.ffie.fr/fileadmin/user_upload/ELECTRIFICATION_WEB.png",
+    // The two FFIE documents referenced inline above, as attached documents.
+    attachments: [
+      {
+        label: "Plan d'électrification des usages",
+        url: "https://www.ffie.fr/les-documents-de-la-ffie/detail?tx_ffiedoc_document%5Baction%5D=show&tx_ffiedoc_document%5Bcontroller%5D=Document&tx_ffiedoc_document%5Bdocument%5D=1484&cHash=597a013aa0fd74421cbbc0d4543c3359",
+        kind: "doc",
+      },
+      {
+        label: "Fiche — la sécurité électrique",
+        url: "https://www.ffie.fr/les-documents-de-la-ffie/detail?tx_ffiedoc_document%5Baction%5D=show&tx_ffiedoc_document%5Bcontroller%5D=Document&tx_ffiedoc_document%5Bdocument%5D=1471&cHash=3eea20b0f9b6af15a86243538583bd7e",
+        kind: "doc",
+      },
+    ],
   },
   {
     id: 6,
@@ -200,6 +238,7 @@ export const ARTICLES: Article[] = [
         },
       ],
     ],
+    isoDate: "2026-05-22",
     date: "22.05.2026",
     readMinutes: 3,
     memberOnly: false,
@@ -231,6 +270,7 @@ export const ARTICLES: Article[] = [
         },
       ],
     ],
+    isoDate: "2026-05-22",
     date: "22.05.2026",
     readMinutes: 3,
     memberOnly: false,
@@ -257,6 +297,7 @@ export const ARTICLES: Article[] = [
         },
       ],
     ],
+    isoDate: "2026-05-22",
     date: "22.05.2026",
     readMinutes: 3,
     memberOnly: false,
@@ -282,9 +323,20 @@ export const ARTICLES: Article[] = [
         },
       ],
     ],
+    isoDate: "2026-05-22",
     date: "22.05.2026",
     readMinutes: 3,
     memberOnly: false,
     imageUrl: "https://www.ffie.fr/fileadmin/user_upload/Nouveau_Cursus_TST_BT_WEB.png",
   },
 ];
+
+// Feed order is strictly reverse-chronological — NEWS-01's "content is displayed
+// chronologically". Sorting on isoDate (yyyy-mm-dd sorts lexicographically =
+// chronologically) means the hero is always the most recent article, never a
+// hand-picked entry. The sort is stable in Hermes/V8, so same-day articles keep
+// their source order. Consumers (hero = ARTICLES[0], grid = slice(1), and the
+// reader's prev/next neighbours) all inherit this order automatically.
+export const ARTICLES: Article[] = [...ARTICLES_RAW].sort((a, b) =>
+  b.isoDate.localeCompare(a.isoDate),
+);

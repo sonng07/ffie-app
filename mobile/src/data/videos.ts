@@ -32,9 +32,7 @@ export type VideoCategory = {
   alt: string;
 };
 
-// A film's YouTube watch URL (opened in the in-app browser to play) and its
-// thumbnail (hqdefault always exists for a valid id).
-export const youtubeWatchUrl = (id: string) => `https://www.youtube.com/watch?v=${id}`;
+// A film's YouTube thumbnail URL (hqdefault always exists for a valid id).
 export const youtubeThumb = (id: string) => `https://img.youtube.com/vi/${id}/hqdefault.jpg`;
 
 export const VIDEOS_INTRO =

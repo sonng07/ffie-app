@@ -257,7 +257,9 @@ export const DOMAINS: Domain[] = [
   },
 ];
 
-const METIERS_PAGE = "https://www.ffie.fr/les-metiers-de-lelectricite/metiers-et-formations";
+// The federation's "métiers et formations" index. The "Voir plus de formations"
+// button under the training grid opens it (the page lists every diploma).
+export const METIERS_PAGE = "https://www.ffie.fr/les-metiers-de-lelectricite/metiers-et-formations";
 
 // The two feature cards under the illustration (client: "7 Reasons…" and the
 // "kit professions"). Each opens its source externally (P6 — no gate).
@@ -266,6 +268,9 @@ export type Feature = {
   title: string;
   blurb: string;
   url: string;
+  /** Optional override for the "En savoir plus" affordance label, e.g. the kit
+   *  card reads "Ouvrir le kit (PDF)" so users know the link is a download. */
+  linkLabel?: string;
 };
 
 export const FEATURES: Feature[] = [
@@ -274,14 +279,17 @@ export const FEATURES: Feature[] = [
     title: "7 raisons de devenir électricien",
     blurb:
       "Intéressé par le métier d'intégrateur électricien, ou simplement intrigué ? Voici 7 bonnes raisons de se former ou de postuler.",
-    url: METIERS_PAGE,
+    url: "https://www.ffie.fr/les-metiers-de-lelectricite/metiers-et-formations/7-bonnes-raisons-de-devenir-electricien",
   },
   {
     id: "kit",
     title: "Découvrez les métiers de l'électricité",
     blurb:
       "Un « kit métiers de l'électricité » pour découvrir les métiers, les formations et les témoignages de jeunes apprentis et de chefs d'entreprise.",
-    url: METIERS_PAGE,
+    // The kit is a downloadable PDF (opens in the in-app browser, which renders
+    // it inline). The label is set accordingly so users know what to expect.
+    url: "https://www.ffie.fr/fileadmin/user_upload/KIT_METIERS_-_VERSION_WEB.pdf",
+    linkLabel: "Ouvrir le kit (PDF)",
   },
 ];
 

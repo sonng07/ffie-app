@@ -34,6 +34,17 @@ import { useGroupedColors } from "@/components/ui/ios";
 
 export type FilterOption<K extends string> = { key: K; label: string };
 
+/** One titled group of chips inside the sheet. A sheet can stack several — the
+ *  Library stacks "Famille" + "Hors ligne". Keys are plain strings at this
+ *  boundary; each caller keeps its own typed Set behind `onToggle`. */
+export type FilterSection = {
+  /** Uppercase label above this chip group, e.g. "Famille". */
+  label: string;
+  options: FilterOption<string>[];
+  selected: Set<string>;
+  onToggle: (key: string) => void;
+};
+
 // ---------------------------------------------------------------------------
 // FilterButton — inline trigger. Place next to a search field, or in a header
 // trailing slot. Shows a red count badge when filters are active.
@@ -119,6 +130,7 @@ export function FilterSheet<K extends string>({
   sectionLabel,
   options,
   selected,
+  sections,
   resultCount,
   onToggle,
   onReset,
@@ -127,17 +139,35 @@ export function FilterSheet<K extends string>({
 }: {
   visible: boolean;
   themeName: ThemeName;
-  /** Uppercase label above the chip group, e.g. "Status" or "Category". */
-  sectionLabel: string;
-  options: FilterOption<K>[];
-  selected: Set<K>;
+  /** Single-section API (News, Partners): provide these OR `sections`.
+   *  Uppercase label above the chip group, e.g. "Catégorie". */
+  sectionLabel?: string;
+  options?: FilterOption<K>[];
+  selected?: Set<K>;
+  onToggle?: (key: K) => void;
+  /** Multi-section API: stack several titled chip groups (the Library stacks
+   *  "Famille" + "Hors ligne"). Takes precedence over the single-section props. */
+  sections?: FilterSection[];
   resultCount: number;
-  onToggle: (key: K) => void;
   onReset: () => void;
   onClose: () => void;
   title?: string;
 }) {
   const t = themes[themeName];
+
+  // Normalize to a section list so the body renders one path. The single-section
+  // props collapse to a one-element list; that legacy `onToggle` is keyed by the
+  // caller's K but only ever called with a key from its own options, so widening
+  // to string is safe.
+  const resolvedSections: FilterSection[] = sections ?? [
+    {
+      label: sectionLabel ?? "",
+      options: (options ?? []) as FilterOption<string>[],
+      selected: (selected ?? new Set<string>()) as Set<string>,
+      onToggle: onToggle as (key: string) => void,
+    },
+  ];
+  const totalSelected = resolvedSections.reduce((n, s) => n + s.selected.size, 0);
 
   // Internal mount flag — keep the Modal alive while the exit animation plays
   // out, then unmount when it finishes.
@@ -262,47 +292,51 @@ export function FilterSheet<K extends string>({
                 </Pressable>
               </View>
 
-              {/* Section: chips */}
-              <Text style={[sheetStyles.sectionLabel, { color: t.text.muted }]}>
-                {sectionLabel}
-              </Text>
-              <View style={sheetStyles.chipRow}>
-                {options.map((opt) => {
-                  const isSelected = selected.has(opt.key);
-                  return (
-                    <Pressable
-                      key={opt.key}
-                      accessibilityRole="button"
-                      accessibilityState={{ selected: isSelected }}
-                      accessibilityLabel={opt.label}
-                      onPress={() => onToggle(opt.key)}
-                      style={({ pressed }) => ({
-                        paddingHorizontal: 14,
-                        height: 36,
-                        borderRadius: 18,
-                        backgroundColor: isSelected
-                          ? t.brand.accent
-                          : pressed ? t.border.subtle : t.surface.subtle,
-                        borderWidth: 1,
-                        borderColor: isSelected ? t.brand.accent : t.border.subtle,
-                        alignItems: "center",
-                        justifyContent: "center",
-                      })}
-                    >
-                      <Text
-                        style={{
-                          color: isSelected ? "#FFFFFF" : t.text.body,
-                          fontSize: 14,
-                          fontFamily: ralewayFamily(isSelected ? "600" : "500"),
-                          fontWeight: isSelected ? "600" : "500",
-                        }}
-                      >
-                        {opt.label}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
+              {/* Sections: each is a label + a wrapped row of toggleable chips. */}
+              {resolvedSections.map((section, si) => (
+                <View key={section.label || si}>
+                  <Text style={[sheetStyles.sectionLabel, { color: t.text.muted }]}>
+                    {section.label}
+                  </Text>
+                  <View style={sheetStyles.chipRow}>
+                    {section.options.map((opt) => {
+                      const isSelected = section.selected.has(opt.key);
+                      return (
+                        <Pressable
+                          key={opt.key}
+                          accessibilityRole="button"
+                          accessibilityState={{ selected: isSelected }}
+                          accessibilityLabel={opt.label}
+                          onPress={() => section.onToggle(opt.key)}
+                          style={({ pressed }) => ({
+                            paddingHorizontal: 14,
+                            height: 36,
+                            borderRadius: 18,
+                            backgroundColor: isSelected
+                              ? t.brand.accent
+                              : pressed ? t.border.subtle : t.surface.subtle,
+                            borderWidth: 1,
+                            borderColor: isSelected ? t.brand.accent : t.border.subtle,
+                            alignItems: "center",
+                            justifyContent: "center",
+                          })}
+                        >
+                          <Text
+                            style={{
+                              color: isSelected ? "#FFFFFF" : t.text.body,
+                              fontSize: 14,
+                              fontFamily: ralewayFamily(isSelected ? "600" : "500"),
+                              fontWeight: isSelected ? "600" : "500",
+                            }}
+                          >
+                            {opt.label}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </View>
+              ))}
 
               {/* Actions */}
               <View style={sheetStyles.actionsRow}>
@@ -310,7 +344,7 @@ export function FilterSheet<K extends string>({
                   accessibilityRole="button"
                   accessibilityLabel="Réinitialiser les filtres"
                   onPress={onReset}
-                  disabled={selected.size === 0}
+                  disabled={totalSelected === 0}
                   style={({ pressed }) => ({
                     flex: 1,
                     height: 48,
@@ -319,7 +353,7 @@ export function FilterSheet<K extends string>({
                     borderColor: t.border.default,
                     alignItems: "center",
                     justifyContent: "center",
-                    opacity: selected.size === 0 ? 0.4 : pressed ? 0.7 : 1,
+                    opacity: totalSelected === 0 ? 0.4 : pressed ? 0.7 : 1,
                   })}
                 >
                   <Text

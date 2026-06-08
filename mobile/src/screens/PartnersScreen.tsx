@@ -137,6 +137,22 @@ const TAB_TITLES: Record<PartnersTab, string> = {
   organization: "Organisation",
 };
 
+// TEMPORARY: the "Mission & valeurs" and "Organisation" segments are hidden
+// while they sit outside the agreed Phase-1 scope (not in the WBS). Flip this
+// back to `true` to restore both segments — the views (MissionView /
+// OrganizationView) and their data stay in place, so this is the only change.
+const SHOW_FEDERATION_SEGMENTS = false;
+
+// Segments shown in the control. With the federation segments hidden, only
+// "Partenaires" remains and the control collapses (see the screen body).
+const SEGMENT_OPTIONS: { key: PartnersTab; label: string }[] = SHOW_FEDERATION_SEGMENTS
+  ? [
+      { key: "partners", label: "Partenaires" },
+      { key: "mission", label: "Mission & valeurs" },
+      { key: "organization", label: "Organisation" },
+    ]
+  : [{ key: "partners", label: "Partenaires" }];
+
 // Monogram tile — stands in for a partner logo. Tinted by category, short code
 // from the data file. NOT an icon; reads as a brand chip at small size.
 function PartnerMonogram({ partner }: { partner: Partner }) {
@@ -276,20 +292,21 @@ export function PartnersScreen({
         <LargeTitleHeader title={TAB_TITLES[tab]} themeName={themeName} />
 
         {/* Segment toggle. Sits under the large title like an iOS segmented
-            control; switching to Mission & valeurs / Organisation reveals a
-            blank placeholder (those features are not built yet). */}
-        <View style={{ paddingHorizontal: GUTTER, paddingTop: 6, paddingBottom: 16 }}>
-          <SegmentedControl
-            themeName={themeName}
-            value={tab}
-            options={[
-              { key: "partners", label: "Partenaires" },
-              { key: "mission", label: "Mission & valeurs" },
-              { key: "organization", label: "Organisation" },
-            ]}
-            onChange={setTab}
-          />
-        </View>
+            control; switching to Mission & valeurs / Organisation reveals the
+            federation copy. Hidden entirely when only "Partenaires" remains
+            (see SHOW_FEDERATION_SEGMENTS) so no lone pill is shown. */}
+        {SEGMENT_OPTIONS.length > 1 ? (
+          <View style={{ paddingHorizontal: GUTTER, paddingTop: 6, paddingBottom: 16 }}>
+            <SegmentedControl
+              themeName={themeName}
+              value={tab}
+              options={SEGMENT_OPTIONS}
+              onChange={setTab}
+            />
+          </View>
+        ) : (
+          <View style={{ paddingTop: 6 }} />
+        )}
 
         {tab === "mission" ? (
           <MissionView themeName={themeName} scrollY={scrollY} />

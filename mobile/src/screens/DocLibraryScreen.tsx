@@ -41,7 +41,7 @@ import { ralewayFamily } from "@/theme/fonts";
 import { SavedBadge } from "@/components/ui/SavedBadge";
 import { LockTag } from "@/components/ui/LockTag";
 import { Pagination } from "@/components/ui/Pagination";
-import { FilterButton, FilterSheet } from "@/components/ui/FilterControls";
+import { FilterButton, FilterSheet, type FilterSection } from "@/components/ui/FilterControls";
 import { DOCS, DOC_FAMILIES, docSubtitle, type Doc, type DocFamily } from "@/data/docs";
 import { DocDetailScreen } from "@/screens/DocDetailScreen";
 import { MemberOnlyPrompt } from "@/screens/MemberOnlyPrompt";
@@ -65,6 +65,14 @@ const FILTER_OPTIONS: { key: SavedFilterKey; label: string }[] = [
   { key: "saved", label: "Enregistrés hors ligne" },
   { key: "not-saved", label: "Non enregistrés" },
 ];
+
+// Family (Famille) facet — the FFIE site's top-level taxonomy (FFIE-DOC-04:
+// "filtering ... by category"). Keys ARE the family names, so a selected key
+// maps straight onto each doc's `family`. Built from the canonical order in
+// docs.ts so the chips read in the same order the site lists them.
+const FAMILY_OPTIONS: { key: DocFamily; label: string }[] = DOC_FAMILIES.map(
+  (f) => ({ key: f, label: f }),
+);
 
 // Paging + progressive disclosure. PAGE_SIZE docs per page; each page opens
 // showing INITIAL_VISIBLE rows ("Afficher plus" reveals the rest). Tunable.
@@ -205,6 +213,7 @@ export function DocLibraryScreen({
   const [query, setQuery] = useState("");
   const [filterOpen, setFilterOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState<Set<SavedFilterKey>>(new Set());
+  const [familyFilter, setFamilyFilter] = useState<Set<DocFamily>>(new Set());
   // A tapped doc opens either its detail (accessible) or the member-only upsell
   // (a guest tapping a locked doc) — one surface at a time over the list.
   const [active, setActive] = useState<{ kind: "detail" | "locked"; doc: Doc } | null>(null);
@@ -244,11 +253,15 @@ export function DocLibraryScreen({
     scrollRef.current?.scrollTo({ y: 0, animated: animated && !reducedMotion });
   };
 
-  // Search + status filter narrow the corpus (kept in the site's order).
+  // Search + family + status filters narrow the corpus (kept in the site's
+  // order). Within a facet the selected chips are OR'd; the facets are AND'd
+  // (e.g. "Maintenance" AND "Enregistrés hors ligne").
   const filtered = useMemo<Doc[]>(() => {
     const q = query.trim().toLowerCase();
     const hasStatusFilter = statusFilter.size > 0;
+    const hasFamilyFilter = familyFilter.size > 0;
     return DOCS.filter((d) => {
+      if (hasFamilyFilter && !familyFilter.has(d.family)) return false;
       const savedKey: SavedFilterKey = d.saved ? "saved" : "not-saved";
       if (hasStatusFilter && !statusFilter.has(savedKey)) return false;
       if (!q) return true;
@@ -258,13 +271,13 @@ export function DocLibraryScreen({
         d.categories.some((cat) => cat.toLowerCase().includes(q))
       );
     });
-  }, [query, statusFilter]);
+  }, [query, statusFilter, familyFilter]);
 
   // Any change to the result set sends us back to page 1, collapsed.
   useEffect(() => {
     setPage(1);
     setExpanded(false);
-  }, [query, statusFilter]);
+  }, [query, statusFilter, familyFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
@@ -284,8 +297,35 @@ export function DocLibraryScreen({
     if (next !== showBackToTop) setShowBackToTop(next);
   };
 
-  const activeFilterCount = statusFilter.size;
+  const activeFilterCount = statusFilter.size + familyFilter.size;
   const cachedCount = useMemo(() => DOCS.filter((d) => d.saved).length, []);
+
+  // Toggle a key in/out of a Set-valued filter (immutably).
+  const toggleIn = <K,>(set: React.Dispatch<React.SetStateAction<Set<K>>>) => (key: K) =>
+    set((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+
+  // The two facets stacked in the filter sheet: Famille (FFIE taxonomy) then
+  // Hors ligne (device cache state). Keys are strings at the sheet boundary; the
+  // typed Sets live here. Famille leads — it's the primary way to browse.
+  const filterSections: FilterSection[] = [
+    {
+      label: "Famille",
+      options: FAMILY_OPTIONS,
+      selected: familyFilter as Set<string>,
+      onToggle: toggleIn(setFamilyFilter) as (key: string) => void,
+    },
+    {
+      label: "Hors ligne",
+      options: FILTER_OPTIONS,
+      selected: statusFilter as Set<string>,
+      onToggle: toggleIn(setStatusFilter) as (key: string) => void,
+    },
+  ];
 
   if (active?.kind === "detail") {
     return (
@@ -543,19 +583,12 @@ export function DocLibraryScreen({
       <FilterSheet
         visible={filterOpen}
         themeName={themeName}
-        sectionLabel="Hors ligne"
-        options={FILTER_OPTIONS}
-        selected={statusFilter}
+        sections={filterSections}
         resultCount={filtered.length}
-        onToggle={(key) => {
-          setStatusFilter((prev) => {
-            const next = new Set(prev);
-            if (next.has(key)) next.delete(key);
-            else next.add(key);
-            return next;
-          });
+        onReset={() => {
+          setFamilyFilter(new Set());
+          setStatusFilter(new Set());
         }}
-        onReset={() => setStatusFilter(new Set())}
         onClose={() => setFilterOpen(false)}
       />
     </SafeAreaView>

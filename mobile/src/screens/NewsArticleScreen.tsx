@@ -6,7 +6,7 @@
 // article is open and the back transition.
 
 import React from "react";
-import { ChevronLeft, ChevronRight, Share2 } from "lucide-react-native";
+import { ChevronLeft, ChevronRight, FileText, Download, Share2 } from "lucide-react-native";
 import { Pressable, ScrollView, Share, StyleSheet, Text, View } from "react-native";
 import * as WebBrowser from "expo-web-browser";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -205,6 +205,85 @@ export function NewsArticleScreen({
             </Text>
           );
         })}
+
+        {/* Associated documents (NEWS-02). The real FFIE files the article
+            references, surfaced as a tappable list rather than only inline
+            links. Opens in the in-app browser for now (download = FFIE-DOC-03). */}
+        {article.attachments && article.attachments.length > 0 ? (
+          <View style={{ marginTop: 28 }}>
+            <Text
+              accessibilityRole="header"
+              style={{
+                color: t.text.muted,
+                fontSize: 12,
+                fontFamily: ralewayFamily("600"),
+                fontWeight: "600",
+                letterSpacing: 0.6,
+                textTransform: "uppercase",
+                marginBottom: 12,
+              }}
+            >
+              Documents associés
+            </Text>
+            <View
+              style={{
+                backgroundColor: c.cardBg,
+                borderRadius: primitives.radii.lg,
+                borderWidth: c.cardBorder ? 1 : 0,
+                borderColor: c.cardBorder,
+                overflow: "hidden",
+              }}
+            >
+              {article.attachments.map((doc, i) => (
+                <Pressable
+                  key={doc.url}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Ouvrir le document : ${doc.label}`}
+                  accessibilityHint="Ouvre le document dans l'application"
+                  onPress={() => openInBrowser(doc.url)}
+                  style={({ pressed }) => ({
+                    flexDirection: "row",
+                    alignItems: "center",
+                    columnGap: 12,
+                    paddingHorizontal: 14,
+                    paddingVertical: 13,
+                    minHeight: 48,
+                    backgroundColor: pressed ? t.surface.subtle : "transparent",
+                    borderTopWidth: i === 0 ? 0 : StyleSheet.hairlineWidth,
+                    borderTopColor: t.border.default,
+                  })}
+                >
+                  <View
+                    style={{
+                      width: 34,
+                      height: 34,
+                      borderRadius: 9,
+                      backgroundColor: t.brand.accent,
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <FileText size={18} color="#FFFFFF" strokeWidth={2} />
+                  </View>
+                  <Text
+                    numberOfLines={2}
+                    style={{
+                      flex: 1,
+                      color: t.text.body,
+                      fontSize: 15,
+                      lineHeight: 20,
+                      fontFamily: ralewayFamily("600"),
+                      fontWeight: "600",
+                    }}
+                  >
+                    {doc.label}
+                  </Text>
+                  <Download size={18} color={t.brand.accent} style={{ opacity: 0.85 }} />
+                </Pressable>
+              ))}
+            </View>
+          </View>
+        ) : null}
 
         {/* Previous / next article navigation. Previous is disabled on the
             first article, next on the last. */}

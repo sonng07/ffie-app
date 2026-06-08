@@ -2,15 +2,20 @@
 //
 // This is where the spec'd offline + share behaviours live:
 //   - FFIE-DOC-03 (member): download a document "to keep locally". Surfaced
-//     here as a "Saved for offline" toggle. Public users never reach this —
-//     the whole Library tab is member-gated.
+//     here as a "Saved for offline" toggle. Guests can browse the Library list
+//     (GUEST_TABS), but tapping a member-only doc routes them to the upsell
+//     (MemberOnlyPrompt) instead of here — so this detail is only reached for
+//     docs the viewer may open (every doc for members; the public doc for all).
 //   - PERSONAS #8: "Share-to-WhatsApp / share-to-Mail must be one tap from
 //     any document." → the share action in the nav bar.
 //
-// "Ouvrir le document" opens the real FFIE source (the public PDF where one
-// exists, otherwise the document's FFIE detail page) in the in-app browser —
-// the same expo-web-browser PAGE_SHEET pattern used across the app. A bundled
-// PDF viewer is still a follow-up (needs a dev build).
+// "Ouvrir le document" opens a real PDF (doc.sourceUrl) in the in-app
+// PdfViewerScreen — an embedded react-native-webview reader with the app's own
+// chrome (FFIE-DOC-02: "opened in the application"). Documents that only have an
+// HTML detail page (no public file URL) open in the in-app browser instead — the
+// expo-web-browser PAGE_SHEET pattern used across the app, the right tool for a
+// web page. Once the backend syncs real member-doc file URLs they'll all route
+// through the embedded reader.
 
 import React, { useState } from "react";
 import { ChevronLeft, FileText, Share2, WifiOff } from "lucide-react-native";
@@ -21,6 +26,7 @@ import { primitives, themes, type ThemeName } from "@tokens";
 import { displayFamily } from "@/theme/fonts";
 import { GUTTER, InsetGroup, InsetRow, useGroupedColors } from "@/components/ui/ios";
 import { SavedBadge } from "@/components/ui/SavedBadge";
+import { PdfViewerScreen } from "@/screens/PdfViewerScreen";
 import { docSubtitle, type Doc } from "@/data/docs";
 
 export function DocDetailScreen({
@@ -41,6 +47,8 @@ export function DocDetailScreen({
   const [savedOffline, setSavedOffline] = useState(doc.saved);
   // Real cover image — drops to the FileText placeholder if it can't be fetched.
   const [coverFailed, setCoverFailed] = useState(false);
+  // Embedded PDF reader open over the detail (real-PDF docs only).
+  const [pdfOpen, setPdfOpen] = useState(false);
 
   const share = async () => {
     try {
@@ -50,16 +58,34 @@ export function DocDetailScreen({
     }
   };
 
-  // Public PDF where the FFIE site exposes one, otherwise the FFIE detail page.
-  const openUrl = doc.sourceUrl ?? doc.detailUrl;
-  const openLabel = doc.sourceUrl ? "Ouvrir le document (PDF)" : "Voir sur ffie.fr";
+  // A real PDF opens in the embedded reader; an HTML-only detail page opens in
+  // the in-app browser (the right tool for a web page).
+  const hasPdf = !!doc.sourceUrl;
+  const openLabel = hasPdf ? "Ouvrir le document (PDF)" : "Voir sur ffie.fr";
   const openDocument = () => {
-    WebBrowser.openBrowserAsync(openUrl, {
+    if (hasPdf) {
+      setPdfOpen(true);
+      return;
+    }
+    WebBrowser.openBrowserAsync(doc.detailUrl, {
       presentationStyle: WebBrowser.WebBrowserPresentationStyle.PAGE_SHEET,
     }).catch(() => {
       // browser unavailable — no-op
     });
   };
+
+  // Embedded reader replaces the detail while open (home-rolled nav pattern).
+  if (pdfOpen && doc.sourceUrl) {
+    return (
+      <PdfViewerScreen
+        uri={doc.sourceUrl}
+        title={doc.title}
+        themeName={themeName}
+        onBack={() => setPdfOpen(false)}
+        onShare={share}
+      />
+    );
+  }
 
   const showCover = !!doc.thumbUrl && !coverFailed;
 

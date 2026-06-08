@@ -14,15 +14,16 @@
 // (ffie.fr/les-metiers-de-lelectricite/metiers-et-formations) section-by-section:
 //   1. The client's intro paragraph (verbatim).
 //   2. Explore the field — the 5 domains as tappable rows opening a detail sheet.
-//   3. Two feature cards — "7 Reasons…" and the "kit professions".
+//   3. Two feature cards — "7 Reasons…" and the "kit professions"; each opens
+//      its page (the kit is a PDF) in the in-app browser.
 //   4. "Professions of tomorrow" — heading + intro + a 2-column TRAINING grid
-//      + a "See more training" button.
+//      + a "See more training" button (opens the métiers index).
 //
 // Scope: Métiers is FFIE-TRADES-01 (career profiles + educational content). All
 // imagery is placeholder (see data/trades.ts); links open externally (P6).
 
 import React, { useEffect, useRef, useState } from "react";
-import { ArrowRight, ChevronRight, Play, X } from "lucide-react-native";
+import { ArrowRight, ChevronRight, ExternalLink, Play, X } from "lucide-react-native";
 import {
   Modal,
   Pressable,
@@ -32,6 +33,7 @@ import {
   View,
   useWindowDimensions,
 } from "react-native";
+import * as WebBrowser from "expo-web-browser";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { NavigationContainer, useNavigationContainerRef, StackActions } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
@@ -47,6 +49,7 @@ import { CalculatorsView } from "./CalculatorsView";
 import {
   DOMAINS,
   FEATURES,
+  METIERS_PAGE,
   TRADE_INTRO,
   TRAINING_HEADING,
   TRAINING_INTRO,
@@ -58,9 +61,24 @@ import {
 import {
   VIDEOS_INTRO,
   VIDEO_CATEGORIES,
+  YOUTUBE_CHANNEL_URL,
   youtubeThumb,
   type VideoCategory,
 } from "@/data/videos";
+
+// Open an external link in the native in-app browser (page sheet, slides up
+// from the bottom), matching the News / formation readers and the Partners
+// directory. Used by the Métiers feature cards, the "Voir plus de formations"
+// button, and the Vidéos channel link.
+function openInBrowser(url: string, themeName: ThemeName) {
+  const t = themes[themeName];
+  WebBrowser.openBrowserAsync(url, {
+    presentationStyle: WebBrowser.WebBrowserPresentationStyle.PAGE_SHEET,
+    controlsColor: t.brand.accent,
+    toolbarColor: t.surface.default,
+    dismissButtonStyle: "close",
+  }).catch(() => {});
+}
 
 // The Trades tab is a self-contained native stack (Feed → Formation), exactly
 // like the News tab: tapping a formation card pushes the reader, which gets the
@@ -329,7 +347,7 @@ function TradesBody({
         ))}
       </View>
 
-      {/* 3. Feature cards — "7 Reasons…" and the kit. */}
+      {/* 3. Feature cards — "7 Reasons…" and the kit. Each opens externally. */}
       <View style={{ paddingHorizontal: GUTTER, marginTop: 24, rowGap: 14 }}>
         {FEATURES.map((feature) => (
           <FeatureCard key={feature.id} feature={feature} themeName={themeName} />
@@ -378,7 +396,10 @@ function TradesBody({
       </View>
 
       <View style={{ alignItems: "center", marginTop: 22 }}>
-        <SeeMoreButton themeName={themeName} />
+        <SeeMoreButton
+          themeName={themeName}
+          onPress={() => openInBrowser(METIERS_PAGE, themeName)}
+        />
       </View>
 
       {/* Domain detail — full-screen sheet, opened from a domain row. */}
@@ -434,7 +455,53 @@ function VideosView({
           />
         ))}
       </View>
+
+      {/* The intro points users to the federation's channel "pour tout voir" —
+          this is that link, opening the channel in the in-app browser. */}
+      <View style={{ alignItems: "center", marginTop: 24 }}>
+        <ChannelButton themeName={themeName} />
+      </View>
     </>
+  );
+}
+
+// ChannelButton — the outlined "Voir notre chaîne YouTube" button under the
+// Vidéos grid. Mirrors SeeMoreButton, with an external-link glyph (the channel
+// opens in the in-app browser, not inline) — YOUTUBE_CHANNEL_URL.
+function ChannelButton({ themeName }: { themeName: ThemeName }) {
+  const t = themes[themeName];
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel="Voir notre chaîne YouTube."
+      accessibilityHint="Ouvre la chaîne YouTube de la FFIE"
+      onPress={() => openInBrowser(YOUTUBE_CHANNEL_URL, themeName)}
+      style={({ pressed }) => ({
+        flexDirection: "row",
+        alignItems: "center",
+        columnGap: 8,
+        minHeight: 48,
+        paddingHorizontal: 22,
+        borderRadius: primitives.radii.md,
+        borderWidth: 1.5,
+        borderColor: t.brand.accent,
+        backgroundColor: pressed ? t.border.subtle : "transparent",
+      })}
+    >
+      <ExternalLink size={17} color={t.brand.accent} />
+      <Text
+        style={{
+          color: t.brand.accent,
+          fontSize: 13,
+          fontFamily: ralewayFamily("700"),
+          fontWeight: "700",
+          letterSpacing: 0.4,
+          textTransform: "uppercase",
+        }}
+      >
+        Voir notre chaîne YouTube
+      </Text>
+    </Pressable>
   );
 }
 
@@ -803,21 +870,27 @@ function LearnMore({ themeName, label = "En savoir plus" }: { themeName: ThemeNa
 
 // ---------------------------------------------------------------------------
 // FeatureCard — a full-width content card (client: "7 Reasons…", the kit):
-// title with an accent underline, blurb, and a "Learn more →" link.
+// title with an accent underline, blurb, and a "Learn more →" link. The whole
+// card is the tap target; tapping opens its page in the in-app browser (the kit
+// is a PDF, rendered inline). The "En savoir plus →" affordance sits bottom-
+// right to signal the card leads off-app.
 // ---------------------------------------------------------------------------
 function FeatureCard({ feature, themeName }: { feature: Feature; themeName: ThemeName }) {
   const t = themes[themeName];
   const c = useGroupedColors(themeName);
   return (
-    <View
+    <Pressable
+      accessibilityRole="button"
       accessibilityLabel={`${feature.title}. ${feature.blurb}.`}
-      style={{
-        backgroundColor: c.cardBg,
+      accessibilityHint="Ouvre la page sur ffie.fr"
+      onPress={() => openInBrowser(feature.url, themeName)}
+      style={({ pressed }) => ({
+        backgroundColor: pressed ? t.border.subtle : c.cardBg,
         borderRadius: primitives.radii.lg,
         borderWidth: c.cardBorder ? 1 : 0,
         borderColor: c.cardBorder,
         padding: 18,
-      }}
+      })}
     >
       <Text
         style={{
@@ -834,7 +907,12 @@ function FeatureCard({ feature, themeName }: { feature: Feature; themeName: Them
       <Text style={{ color: t.text.muted, fontSize: 14, lineHeight: 21, marginTop: 12 }}>
         {feature.blurb}
       </Text>
-    </View>
+      {/* "En savoir plus →" affordance, bottom-right. Decorative — the card
+          itself is the single tap target (a11y: one button, not nested). */}
+      <View style={{ marginTop: 14, alignItems: "flex-end" }}>
+        <LearnMore themeName={themeName} label={feature.linkLabel} />
+      </View>
+    </Pressable>
   );
 }
 

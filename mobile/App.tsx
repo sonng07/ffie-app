@@ -337,16 +337,29 @@ function GuestShell() {
   const openApplication = () => setApplicationOpen(true);
   const openSignIn = () => setSignInOpen(true);
   const authenticate = () => {
-    // Dismiss the sign-in (and the directory it's nested in) FIRST, then promote
-    // to member once they've slid away. Flipping the role immediately unmounts
-    // the guest shell mid-dismiss, which can strand a modal over the member
-    // News page (the guest flow nests two modals; onboarding only has one, which
-    // is why it doesn't hit this). Both shells open on News, so the brief
-    // guest→member swap underneath the closing modal is invisible — the user
-    // simply lands on the News page, logged in.
+    // Dismiss the modals FIRST, then promote to member once they've slid away.
+    // Flipping the role immediately unmounts the guest shell mid-dismiss, which
+    // can strand a modal over the member News page.
+    //
+    // Two entry paths share this handler, and they differ in modal depth:
+    //   - From the directory (avatar → Adhérer → "Se connecter"): the sign-in
+    //     popup is NESTED inside the directory modal. iOS cannot dismiss a
+    //     presenting modal (the directory) while its presented child (sign-in)
+    //     is still up — doing both in the same tick rips the child's view
+    //     controller out mid-dismiss and leaves a BLACK SCREEN. So we dismiss
+    //     the child, wait for it to finish sliding away, THEN dismiss the
+    //     parent, THEN (after that too has slid away) promote the role.
+    //   - From News etc. (no directory open): only the sign-in modal is up, so
+    //     there's nothing to stagger — dismiss it and promote after one slide.
+    // Both shells open on News, so the brief guest→member swap underneath the
+    // closing modal is invisible — the user simply lands on News, logged in.
     setSignInOpen(false);
-    setBecomeMemberOpen(false);
-    setTimeout(() => setRole("member"), MODAL_DISMISS_MS);
+    if (becomeMemberOpen) {
+      setTimeout(() => setBecomeMemberOpen(false), MODAL_DISMISS_MS);
+      setTimeout(() => setRole("member"), MODAL_DISMISS_MS * 2);
+    } else {
+      setTimeout(() => setRole("member"), MODAL_DISMISS_MS);
+    }
   };
 
   return (
