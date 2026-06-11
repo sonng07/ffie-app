@@ -8,5 +8,14 @@
 
 import { primitives } from "@tokens";
 
-/** Brand header background — ffie.fr primary teal. */
-export const HEADER_SURFACE = primitives.colors.brand.teal[600]; // #0094A9
+/**
+ * Brand header background — FFIE operational teal at [700] (#027489).
+ *
+ * ONE teal for the whole interactive system: this is the SAME value as the
+ * light theme's `action.primary.bg` and `brand.accent`, so the header, the
+ * primary buttons, the segmented toggles and the filter controls all read as a
+ * single brand teal rather than two near-misses. It was teal[600] (#0094A9) —
+ * one shade brighter — but that only clears ~3.6:1 against white (AA-large
+ * only); [700] lands ~5.4:1, so the white header text/icons pass AA at any size.
+ */
+export const HEADER_SURFACE = primitives.colors.brand.teal[700]; // #027489

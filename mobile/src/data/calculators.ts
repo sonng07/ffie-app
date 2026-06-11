@@ -15,53 +15,9 @@
 // data, which we don't invent; the puissance tool is framed as an aid, with a
 // footnote pointing back to the standard for the actual sizing decision.
 
-import { Activity, Cable, Gauge, type LucideIcon } from "lucide-react-native";
-
-// ---------------------------------------------------------------------------
-// Registry — what the calculators module offers. The `available` tools each
-// have a `kind` the screen switches on; the "soon" entries advertise the
-// planned domains so the module reads as a roadmap, not a dead end.
-// ---------------------------------------------------------------------------
+// The kind a working calculator sheet switches on — used by the Tools hub tiles
+// (ToolsHubView) and the sheets in CalculatorsView.
 export type CalculatorKind = "power" | "voltage-drop";
-
-export type CalculatorEntry = {
-  id: string;
-  title: string;
-  /** One-line description of what the tool computes (the row subtitle). */
-  subtitle: string;
-  icon: LucideIcon;
-  /** Domain tag from the PRD (power / sizing / standards). */
-  domain: "Power" | "Sizing" | "Standards";
-} & ({ available: true; kind: CalculatorKind } | { available: false });
-
-export const CALCULATORS: ReadonlyArray<CalculatorEntry> = [
-  {
-    id: "power-current",
-    title: "Power & current",
-    subtitle: "Current and apparent power of a single/three-phase load",
-    icon: Activity,
-    domain: "Power",
-    available: true,
-    kind: "power",
-  },
-  {
-    id: "voltage-drop",
-    title: "Voltage drop",
-    subtitle: "Line ΔU and NF C 15-100 compliance",
-    icon: Gauge,
-    domain: "Standards",
-    available: true,
-    kind: "voltage-drop",
-  },
-  {
-    id: "cable-sizing",
-    title: "Cable cross-section",
-    subtitle: "Sizing according to NF C 15-100",
-    icon: Cable,
-    domain: "Sizing",
-    available: false,
-  },
-];
 
 // ---------------------------------------------------------------------------
 // Power ↔ current — the working calculator.
@@ -143,7 +99,11 @@ export function computePower(input: PowerInput): PowerResult {
 //
 //   ΔU = b × ( ρ × (L / S) × cos φ  +  λ × L × sin φ ) × I_B
 //
-//   b   = 2 for single-phase (out-and-back), 1 for three-phase
+//   b   = 2 for single-phase (out-and-back over phase + neutral, ΔU vs 230 V)
+//         √3 for three-phase balanced (line-to-line ΔU, compared vs 400 V) —
+//         the Schneider / NF C 15-100 table form ΔU = √3·I·(R cosφ + X sinφ)·L.
+//         Using b = 1 understates the three-phase relative drop by √3, because
+//         dropPercent below divides by the phase-to-phase voltage (voltageV).
 //   ρ   = conductor resistivity at its operating temperature (Ω·mm²/m)
 //   L   = feeder run length (m)
 //   S   = conductor cross-section (mm²)
@@ -213,7 +173,7 @@ export function isValidVoltageDropInput(i: VoltageDropInput): boolean {
 }
 
 export function computeVoltageDrop(i: VoltageDropInput): VoltageDropResult {
-  const b = i.phase === "single" ? 2 : 1;
+  const b = i.phase === "single" ? 2 : SQRT_3;
   const rho = RESISTIVITY[i.conductor];
   const cosPhi = i.powerFactor;
   // sin φ from cos φ (φ in the first quadrant for a typical inductive load).

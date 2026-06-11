@@ -41,15 +41,16 @@ export function SegmentedControl<K extends string>({
   value: K;
   options: SegmentOption<K>[];
   onChange: (key: K) => void;
-  /** Selected-thumb colour. Defaults to the brand accent (teal). Pass a brand
-   *  colour (e.g. the header navy) to match a screen's surface. The label over
-   *  the thumb is always white, so keep this dark enough for contrast. */
+  /** Selected-thumb colour. Defaults to brand teal[700] (#027489) — the app's
+   *  accessible action teal, matching the primary CTAs and the News filter
+   *  pills. The label over the thumb is always white, so any override must be
+   *  dark enough for AA (teal[600] #0094A9 is only ~3.6:1 on white — too light). */
   tint?: string;
 }) {
   const t = themes[themeName];
   const c = useGroupedColors(themeName);
   const reducedMotion = useReducedMotion();
-  const thumbColor = tint ?? t.brand.accent;
+  const thumbColor = tint ?? primitives.colors.brand.teal[700];
 
   const bw = c.cardBorder ? 1 : 0;
   const n = options.length;

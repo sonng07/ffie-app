@@ -17,7 +17,15 @@
 // guest shell; members never hit the locked branch.
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Pressable, ScrollView, Text, View } from "react-native";
+import {
+  Pressable,
+  ScrollView,
+  Text,
+  View,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
+} from "react-native";
+import { ArrowUp } from "lucide-react-native";
 import { primitives, themes, type ThemeName } from "@tokens";
 import { ralewayFamily } from "@/theme/fonts";
 import { GUTTER, useGroupedColors } from "@/components/ui/ios";
@@ -29,6 +37,10 @@ import { NavigationContainer, useNavigationContainerRef, StackActions } from "@r
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { canAccess, useRole } from "@/auth/roleContext";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
+import {
+  ASSISTANT_FAB_SIZE,
+  ASSISTANT_FAB_GAP,
+} from "@/components/assistant/AssistantChatWidget";
 import { NewsArticleScreen } from "./NewsArticleScreen";
 import { MemberOnlyPrompt } from "./MemberOnlyPrompt";
 
@@ -47,6 +59,18 @@ const CATEGORY_PILLS: { key: CategoryKey; label: string }[] = [
 
 // Vertical rhythm between the full-width cards in the feed column.
 const ROW_GAP = 18;
+
+// Scroll depth (px) past which the floating back-to-top button fades in. Matches
+// the threshold used on the Library feed for a consistent feel across tabs.
+const BACK_TO_TOP_AT = 520;
+
+// The Claude assistant FAB (AssistantChatWidget) owns the bottom-right corner.
+// This button lives in the screen's content area, which already sits ABOVE the
+// tab bar (the bottom inset is absorbed there) — so it's measured from the tab
+// bar's top, not the device edge, and needs no safe-area inset. The FAB rises
+// ASSISTANT_FAB_GAP + ASSISTANT_FAB_SIZE into this space, so the button stacks
+// one 12pt gap above it.
+const BACK_TO_TOP_LIFT = ASSISTANT_FAB_GAP + ASSISTANT_FAB_SIZE + 12;
 
 // The News tab is a native stack so the article reader gets the platform's
 // real back affordances for free: iOS's left-edge swipe-back and Android's
@@ -212,7 +236,23 @@ function NewsFeed({
   const t = themes[themeName];
   const c = useGroupedColors(themeName);
   const { role } = useRole();
+  const reducedMotion = useReducedMotion();
   const [category, setCategory] = useState<CategoryKey>("all");
+
+  // Floating "back to top" — the feed scroll ref, plus a visibility flag the
+  // scroll handler flips once the user is far enough down to want a shortcut.
+  const scrollRef = useRef<ScrollView>(null);
+  const [showBackToTop, setShowBackToTop] = useState(false);
+
+  const scrollToTop = (animated = true) => {
+    scrollRef.current?.scrollTo({ y: 0, animated: animated && !reducedMotion });
+  };
+
+  const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const y = e.nativeEvent.contentOffset.y;
+    const next = y > BACK_TO_TOP_AT;
+    if (next !== showBackToTop) setShowBackToTop(next);
+  };
 
   // Visual-only pagination. The arrows move the indicator and toggle their own
   // disabled state at the ends; they don't actually re-page the feed yet.
@@ -241,7 +281,12 @@ function NewsFeed({
     // Page title now lives in the shared AppHeader (shell); content renders
     // directly beneath it.
     <View style={{ flex: 1, backgroundColor: c.pageBg }}>
-      <ScrollView contentContainerStyle={{ paddingBottom: 32, paddingTop: 8 }}>
+      <ScrollView
+        ref={scrollRef}
+        onScroll={onScroll}
+        scrollEventThrottle={16}
+        contentContainerStyle={{ paddingBottom: 32, paddingTop: 8 }}
+      >
         {/* Category rail — horizontally scrollable filter pills under the
             large title. Selection swaps state instantly (no animation), so
             there is nothing to gate on reduced motion. */}
@@ -297,13 +342,44 @@ function NewsFeed({
           onJump={(p) => setPage(p)}
         />
       </ScrollView>
+
+      {/* Back-to-top — floats in once scrolled down. Stacked above the Claude
+          assistant FAB (which owns the corner) rather than overlapping it. */}
+      {showBackToTop ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Back to top"
+          onPress={() => scrollToTop()}
+          style={({ pressed }) => ({
+            position: "absolute",
+            right: GUTTER,
+            bottom: BACK_TO_TOP_LIFT,
+            // Same diameter as the assistant FAB it stacks above.
+            width: ASSISTANT_FAB_SIZE,
+            height: ASSISTANT_FAB_SIZE,
+            borderRadius: ASSISTANT_FAB_SIZE / 2,
+            backgroundColor: pressed ? t.action.primary.bgPressed : t.action.primary.bg,
+            alignItems: "center",
+            justifyContent: "center",
+            // Lift it off the list.
+            shadowColor: "#000",
+            shadowOpacity: 0.18,
+            shadowOffset: { width: 0, height: 2 },
+            shadowRadius: 5,
+            elevation: 4,
+          })}
+        >
+          <ArrowUp size={22} color="#FFFFFF" />
+        </Pressable>
+      ) : null}
     </View>
   );
 }
 
 // ---------------------------------------------------------------------------
-// CategoryPill — one filter pill in the rail. Selected = institutional navy
-// fill with a white label; unselected = card surface with a hairline border.
+// CategoryPill — one filter pill in the rail. Selected = brand teal[700] fill
+// (matching the segmented control + primary actions) with a white label;
+// unselected = card surface with a hairline border.
 // The state is exposed to assistive tech via accessibilityState, and the
 // weight bump keeps selection readable beyond the colour flip (P4).
 // ---------------------------------------------------------------------------
@@ -335,11 +411,11 @@ function CategoryPill({
         paddingHorizontal: 16,
         borderRadius: primitives.radii.full,
         backgroundColor: selected
-          ? t.brand.institutional
+          ? primitives.colors.brand.teal[700]
           : pressed ? t.border.subtle : c.cardBg,
         // Border on both states so the pill doesn't change size on selection.
         borderWidth: 1,
-        borderColor: selected ? t.brand.institutional : (c.cardBorder ?? t.border.subtle),
+        borderColor: selected ? primitives.colors.brand.teal[700] : (c.cardBorder ?? t.border.subtle),
         alignItems: "center",
         justifyContent: "center",
       })}

@@ -486,7 +486,13 @@ const light = {
   label: "Standard (Light)",
   brand: {
     institutional: colors.brand.navy[700], // logo navy — headers, federation marks
-    accent: colors.brand.teal[600], // ffie.fr CTA hue
+    // The app's single interactive teal. One shade deeper than the ffie.fr
+    // anchor (teal[600] #0094A9) so it equals action.primary.bg and the header
+    // (HEADER_SURFACE) — one brand teal everywhere. The deeper hue also clears
+    // AA where accent is used as a *fill* under white labels (filter button /
+    // chips, ~5.4:1) and as *text/icons* on white (back buttons, links, the
+    // active tab — was ~3.6:1 at [600], now ~5.4:1).
+    accent: colors.brand.teal[700], // #027489 — matches the header + primary CTAs
   },
   surface: {
     default: colors.white,
@@ -497,7 +503,7 @@ const light = {
     default: colors.gray[200], // decorative — card outlines, dividers
     subtle: colors.gray[100],
     strong: colors.gray[400], // load-bearing — input outlines, table dividers under text. 3.4:1 on white, clears WCAG 1.4.11 non-text 3:1.
-    focus: colors.brand.teal[600], // 3:1+ focus ring on white surfaces. Brand-aligned.
+    focus: colors.brand.teal[700], // focus ring on white — ~5.4:1 (≥3:1). Same brand teal as accent + header (one-teal system).
   },
   text: {
     body: colors.gray[900], // 16.5:1 on white — AAA
@@ -507,16 +513,15 @@ const light = {
     brand: colors.brand.navy[700], // for FFIE federation marks
   },
     action: {
-    // Primary action surface — locked to the brand cyan #3CA9C5. Hover /
-    // pressed step ~10% / ~20% darker (L drop) so the engagement gradient
-    // remains legible.
-    // a11y warning: #3CA9C5 + white fg is ~2.5:1 — FAILS WCAG AA for text.
-    // Acceptable on >18pt bold labels only; if a button label is small,
-    // pair this bg with text.body for ~4.6:1, or step bgPressed in instead.
+    // Primary action surface — FFIE operational teal at [700] (#027489), which
+    // clears WCAG AA for white text at any size (~5.5:1 on white). Hover /
+    // pressed step darker (teal[800] / teal[900]) so the engagement gradient
+    // stays legible. (Was #3CA9C5 ≈ 2.5:1 — failed AA for text; replaced so the
+    // token no longer ships a known-failing default on every primary CTA.)
     primary: {
-      bg: "#3CA9C5",
-      bgHover: "#2D8FA8",
-      bgPressed: "#1F7588",
+      bg: colors.brand.teal[700],
+      bgHover: colors.brand.teal[800],
+      bgPressed: colors.brand.teal[900],
       fg: colors.white,
     },
     // Secondary = outlined button. Transparent bg by default, brand border + fg.

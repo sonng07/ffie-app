@@ -63,6 +63,10 @@ import { MemberOnlyPrompt } from "@/screens/MemberOnlyPrompt";
 import { canAccess, useRole } from "@/auth/roleContext";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
 import {
+  ASSISTANT_FAB_SIZE,
+  ASSISTANT_FAB_GAP,
+} from "@/components/assistant/AssistantChatWidget";
+import {
   GUTTER,
   InsetGroup,
   InsetRow,
@@ -93,6 +97,11 @@ const FAMILY_OPTIONS: { key: DocFamily; label: string }[] = DOC_FAMILIES.map(
 const SECTION_PREVIEW = 3;
 // Show the back-to-top button once the user has scrolled roughly a screenful.
 const BACK_TO_TOP_AT = 520;
+// The Claude assistant FAB (AssistantChatWidget) owns the bottom-right corner.
+// This button lives in the screen's content area (above the tab bar, so the
+// bottom inset is already absorbed) and stacks one 12pt gap above the FAB.
+// Mirrors BACK_TO_TOP_LIFT in NewsScreen.
+const BACK_TO_TOP_LIFT = ASSISTANT_FAB_GAP + ASSISTANT_FAB_SIZE + 12;
 
 // Thumbnail visuals — a 50×66 box showing the document's real FFIE cover image.
 // While that image loads (or if it fails / we're offline) we render a mock
@@ -700,7 +709,8 @@ export function DocLibraryScreen({
         )}
       </ScrollView>
 
-      {/* Back-to-top — floats in once scrolled down, just above the tab bar. */}
+      {/* Back-to-top — floats in once scrolled down. Stacked above the Claude
+          assistant FAB (which owns the corner) rather than overlapping it. */}
       {showBackToTop ? (
         <Pressable
           accessibilityRole="button"
@@ -709,10 +719,11 @@ export function DocLibraryScreen({
           style={({ pressed }) => ({
             position: "absolute",
             right: GUTTER,
-            bottom: 20,
-            width: 44,
-            height: 44,
-            borderRadius: 22,
+            bottom: BACK_TO_TOP_LIFT,
+            // Same diameter as the assistant FAB it stacks above.
+            width: ASSISTANT_FAB_SIZE,
+            height: ASSISTANT_FAB_SIZE,
+            borderRadius: ASSISTANT_FAB_SIZE / 2,
             backgroundColor: pressed ? t.action.primary.bgPressed : t.action.primary.bg,
             alignItems: "center",
             justifyContent: "center",

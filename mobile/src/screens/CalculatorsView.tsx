@@ -1,33 +1,27 @@
-// CalculatorsView — the "Calculators" segment of the Trades tab (FFIE-CALC-01/
-// 02, 🟢 Phase 2, members only).
+// Calculator sheets (FFIE-CALC-01/02, 🟢 Phase 2, members only) — the working
+// tools launched from the Tools hub (ToolsHubView) tiles. The standalone
+// "Calculators" segment was removed when calculators merged into the Tools hub;
+// this module now provides just the sheets (the file keeps its name for import
+// stability).
 //
-// Two states, decided by role (the access model — src/auth/roleContext):
-//   • Guest  → a member-only locked state (Lock + "Members only"),
-//              matching how the rest of the app gates member content. Per the
-//              tech requirement, gated surfaces inform & invite, never 403.
-//   • Member → the calculators module: a grouped list of tools. The working
-//              tool (Power & current) opens in a sheet; the planned tools
-//              (sizing, standards) read as "Coming soon", honestly, since
-//              their reference data is still TBC with FFIE.
-//
-// The calculator itself (PowerCalculatorSheet) computes live as the user types,
-// using the pure helpers in data/calculators.ts. It's framed as an aid: the
-// footnote points back to NF C 15-100 for the actual sizing decision rather
-// than inventing normative tables (CLAUDE.md: no fabricated real-world data).
+// PowerCalculatorSheet (power ↔ current) and VoltageDropSheet compute live as
+// the user types, using the pure helpers in data/calculators.ts. They're framed
+// as aids: the footnotes point back to NF C 15-100 for the actual sizing
+// decision rather than inventing normative tables (CLAUDE.md: no fabricated
+// real-world data). Guests are gated upstream by the Tools hub before a
+// calculator opens.
 
 import React, { useMemo, useState } from "react";
-import { Lock, X } from "lucide-react-native";
+import { X } from "lucide-react-native";
 import { Modal, Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { primitives, themes, type ThemeName } from "@tokens";
 import { ralewayFamily, displayFamily } from "@/theme/fonts";
-import { GUTTER, InsetGroup, InsetRow, useGroupedColors } from "@/components/ui/ios";
+import { GUTTER, useGroupedColors } from "@/components/ui/ios";
 import { Input } from "@/components/ui/Input";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
-import { canAccess, useRole } from "@/auth/roleContext";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
 import {
-  CALCULATORS,
   DEFAULT_POWER_FACTOR,
   DEFAULT_VOLTAGE,
   VOLTAGE_DROP_LIMIT,
@@ -41,144 +35,6 @@ import {
   type LoadType,
   type Phase,
 } from "@/data/calculators";
-
-export function CalculatorsView({ themeName = "light" }: { themeName?: ThemeName }) {
-  const { role } = useRole();
-  const isMember = canAccess(role, "member-only");
-
-  // Which working calculator is open (null = list). Only "power" exists today,
-  // but the union keeps the door open for the planned tools.
-  const [openKind, setOpenKind] = useState<CalculatorKind | null>(null);
-
-  if (!isMember) return <MemberLockedView themeName={themeName} />;
-
-  return (
-    <>
-      <View style={{ paddingHorizontal: GUTTER, paddingTop: 2, paddingBottom: 18 }}>
-        <Text style={{ color: themes[themeName].text.muted, fontSize: 15, lineHeight: 22 }}>
-          Your trade calculation tools. More calculators defined by FFIE will
-          arrive in upcoming versions.
-        </Text>
-      </View>
-
-      <InsetGroup themeName={themeName} footer="FFIE members only.">
-        {CALCULATORS.map((calc, i) => {
-          const t = themes[themeName];
-          const last = i === CALCULATORS.length - 1;
-          return (
-            <InsetRow
-              key={calc.id}
-              themeName={themeName}
-              icon={calc.icon}
-              // Available tools take the brand tile; planned ones are muted so
-              // the row reads as informational, not a dead link.
-              iconBg={calc.available ? t.brand.accent : t.border.strong}
-              title={calc.title}
-              subtitle={calc.subtitle}
-              isLast={last}
-              value={calc.available ? undefined : "Coming soon"}
-              onPress={calc.available ? () => setOpenKind(calc.kind) : undefined}
-              accessibilityLabel={`${calc.title}. ${calc.subtitle}.`}
-              accessibilityHint={calc.available ? "Opens the calculator" : "Coming soon"}
-            />
-          );
-        })}
-      </InsetGroup>
-
-      <PowerCalculatorSheet
-        visible={openKind === "power"}
-        themeName={themeName}
-        onClose={() => setOpenKind(null)}
-      />
-      <VoltageDropSheet
-        visible={openKind === "voltage-drop"}
-        themeName={themeName}
-        onClose={() => setOpenKind(null)}
-      />
-    </>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// MemberLockedView — what a guest sees on the Calculators segment. Lock glyph,
-// an honest one-liner, and the phase badge. (Apply / sign-in CTAs live on the
-// dedicated MemberOnlyPrompt screen reached from the avatar; inside a segment
-// we keep it to a clear, calm gate.)
-// ---------------------------------------------------------------------------
-function MemberLockedView({ themeName }: { themeName: ThemeName }) {
-  const t = themes[themeName];
-  return (
-    <View style={{ paddingHorizontal: GUTTER, paddingTop: 72, alignItems: "center" }}>
-      <View
-        style={{
-          width: 72,
-          height: 72,
-          borderRadius: 36,
-          backgroundColor: t.surface.subtle,
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        <Lock size={30} color={t.brand.accent} strokeWidth={1.75} />
-      </View>
-
-      <Text
-        accessibilityRole="header"
-        style={{
-          color: t.text.body,
-          fontSize: 21,
-          lineHeight: 27,
-          fontFamily: displayFamily("700"),
-          fontWeight: "700",
-          letterSpacing: -0.4,
-          textAlign: "center",
-          marginTop: 20,
-        }}
-      >
-        Technical calculators
-      </Text>
-
-      <Text
-        style={{
-          color: t.text.muted,
-          fontSize: 14.5,
-          lineHeight: 22,
-          textAlign: "center",
-          marginTop: 10,
-          maxWidth: 320,
-        }}
-      >
-        The trade calculation tools (power, sizing, standards) are
-        reserved for FFIE members.
-      </Text>
-
-      <View
-        style={{
-          marginTop: 18,
-          backgroundColor: t.surface.subtle,
-          borderWidth: 1,
-          borderColor: t.border.subtle,
-          borderRadius: primitives.radii.full,
-          paddingHorizontal: 12,
-          paddingVertical: 6,
-        }}
-      >
-        <Text
-          style={{
-            color: t.brand.accent,
-            fontSize: 12,
-            fontFamily: ralewayFamily("700"),
-            fontWeight: "700",
-            letterSpacing: 0.4,
-            textTransform: "uppercase",
-          }}
-        >
-          Members only
-        </Text>
-      </View>
-    </View>
-  );
-}
 
 // ---------------------------------------------------------------------------
 // PowerCalculatorSheet — power ↔ current. The result sits at the top so

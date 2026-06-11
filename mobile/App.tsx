@@ -40,6 +40,7 @@ import { ActiveTabProvider, useActiveTab } from "@/navigation/activeTabContext";
 import { RequireRole } from "@/auth/RequireRole";
 import { RoleDebugSwitcher } from "@/components/dev/RoleDebugSwitcher";
 import { BottomTabBar } from "@/components/navigation/BottomTabBar";
+import { AssistantChatWidget } from "@/components/assistant/AssistantChatWidget";
 import { AppHeader } from "@/components/navigation/AppHeader";
 import { TabSkeletonGate, skeletonForTab } from "@/components/skeletons";
 import {
@@ -182,10 +183,11 @@ function MemberShell({ onSignOut }: { onSignOut: () => void }) {
   // True while a tab is showing a detail/sub-view (e.g. News article, Library
   // doc). The floating avatar is hidden on detail pages — main pages only.
   const [detailOpen, setDetailOpen] = useState(false);
-  // Pending deep-link segment for the Trades tab (Tools FFIE → Calculators);
-  // cleared on any manual tab-bar press so the Trades button opens its default.
+  // Pending deep-link segment for the Discover tab (Tools FFIE → Tools,
+  // Our trades → Trades); cleared on any manual tab-bar press so the tab
+  // button opens its default (Trades).
   const [tradesSegment, setTradesSegment] = useState<
-    "trades" | "videos" | "calculators" | null
+    "trades" | "tools" | "videos" | null
   >(null);
 
   // Tab-bar press. A different tab → switch (the gate remounts + replays its
@@ -200,7 +202,7 @@ function MemberShell({ onSignOut }: { onSignOut: () => void }) {
   };
 
   const handleSignIn = () => {
-    // Real flow: open MemberSignInScreen as a modal. For v1 mock the
+    // Real flow: open the SignInFlow (LoginScreen) modal. For v1 mock the
     // role debug switcher is the path back to "member".
   };
   const handleApply = () => {
@@ -263,13 +265,16 @@ function MemberShell({ onSignOut }: { onSignOut: () => void }) {
               onHomeNavigate: (target) => {
                 // Agenda opens the full-screen Events modal (not a tab).
                 if (target === "agenda") return setAgendaOpen(true);
-                // "tools" deep-links to the Trades tab's Calculators segment.
-                setTradesSegment(target === "tools" ? "calculators" : null);
+                // "tools" opens the Tools segment (calculators live there);
+                // "trades" opens the careers segment.
+                setTradesSegment(
+                  target === "tools" ? "tools" : target === "trades" ? "trades" : null,
+                );
                 // Map each Home card to the tab that hosts its destination.
                 const map: Partial<Record<HomeNavTarget, MemberTabKey>> = {
                   docs: "library",
-                  tools: "discover", // Trades tab → Calculators segment
-                  trades: "discover",
+                  tools: "discover", // Discover tab → Tools segment
+                  trades: "discover", // Discover tab → Trades segment
                   partners: "partners",
                   "find-pro": "partners",
                   news: "news",
@@ -293,6 +298,11 @@ function MemberShell({ onSignOut }: { onSignOut: () => void }) {
         {/* The account avatar that used to float here is now the profile
             action in AppHeader (non-Home tabs) and the tappable identity block
             on the Home hero — so the floating disc is retired. */}
+
+        {/* Floating Claude-powered assistant — corner FAB → chat panel. Mounted
+            here (over the tab set, under the full-screen Modals) so it rides on
+            top of every member tab. Mockup only; see AssistantChatWidget. */}
+        <AssistantChatWidget />
 
         {/* Notifications settings — slide-up Modal. Fresh SafeAreaProvider
             so the inset doesn't compound through the native modal host
@@ -336,7 +346,7 @@ function renderMemberTab(
     onOpenProfile: () => void;
     onOpenSearch: () => void;
     onHomeNavigate: (target: HomeNavTarget) => void;
-    tradesSegment: "trades" | "videos" | "calculators" | null;
+    tradesSegment: "trades" | "tools" | "videos" | null;
     resetSignal: number;
     onDetailChange: (isDetail: boolean) => void;
   }
@@ -413,7 +423,7 @@ function GuestShell() {
   // Pending deep-link segment for the Trades tab (Tools FFIE → Calculators);
   // cleared on any manual tab-bar press. See MemberShell for the rationale.
   const [tradesSegment, setTradesSegment] = useState<
-    "trades" | "videos" | "calculators" | null
+    "trades" | "tools" | "videos" | null
   >(null);
   const { setRole } = useRole();
   const { setActiveTab: publishActiveTab } = useActiveTab();
@@ -512,12 +522,15 @@ function GuestShell() {
               // map to the matching guest tab.
               if (target === "find-pro") return goToJoin();
               if (target === "agenda") return setAgendaOpen(true);
-              // "tools" deep-links to the Trades tab's Calculators segment.
-              setTradesSegment(target === "tools" ? "calculators" : null);
+              // "tools" opens the Tools segment (calculators live there);
+              // "trades" opens the careers segment.
+              setTradesSegment(
+                target === "tools" ? "tools" : target === "trades" ? "trades" : null,
+              );
               const map: Partial<Record<HomeNavTarget, GuestTabKey>> = {
                 docs: "library",
-                tools: "discover", // Trades tab → Calculators segment
-                trades: "discover",
+                tools: "discover", // Discover tab → Tools segment
+                trades: "discover", // Discover tab → Trades segment
                 partners: "partners",
                 news: "news",
               };
@@ -540,6 +553,10 @@ function GuestShell() {
       {/* The account avatar that used to float here is now the join action in
           AppHeader (non-Home tabs) and the "Join the FFIE" CTA on the Home hero
           — so the floating disc is retired. */}
+
+      {/* Floating Claude-powered assistant — same corner widget as the member
+          shell, available to public/company guests too. Mockup only. */}
+      <AssistantChatWidget />
 
       {/* Federation directory ("Join") — slide-up Modal over the guest
           shell, so the tab bar stays mounted underneath. Fresh
@@ -643,7 +660,7 @@ function renderGuestTab(
     onStartApplication: () => void;
     onOpenSearch: () => void;
     onHomeNavigate: (target: HomeNavTarget) => void;
-    tradesSegment: "trades" | "videos" | "calculators" | null;
+    tradesSegment: "trades" | "tools" | "videos" | null;
     resetSignal: number;
     onDetailChange: (isDetail: boolean) => void;
   }

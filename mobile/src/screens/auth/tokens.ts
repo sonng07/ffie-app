@@ -1,56 +1,26 @@
 // Auth-flow screen tokens.
-// Pure spec values for the Splash + Email + OTP screens, all keyed off the
+// Spec values for the member sign-in screen (LoginScreen), keyed off the
 // canonical `@tokens` primitives so any future scale change ripples through.
-// Anything that is just a one-off pixel decision (e.g. OTP dot diameter,
-// keypad row gap) lives here so the screens stay free of magic numbers.
+// (The earlier Splash / Email / OTP screens were superseded by the password
+// LoginScreen and removed, along with their tokens.)
 
 import { primitives } from "@tokens";
 import { HEADER_SURFACE } from "@/theme/brandHeader";
 
-const { space, radii, colors } = primitives;
+const { radii, colors } = primitives;
 
 export const auth = {
-  sheet: {
-    radius: 24,                       // rounded top corners only
-    handleWidth: 36,
-    handleHeight: 4,
-    handleTopInset: space[2],         // 8 — distance from sheet top to handle
-    handleColor: "#D8DCE4",
-    scrim: "rgba(0,0,0,0.55)",
-    paddingX: space[6],               // 24 — card horizontal padding
-    paddingTop: space[6],              // 24
-    paddingBottom: space[5],          // 20
-    minHeightPct: 0.62,
-  },
-
-  splash: {
-    paddingX: space[6],               // 24
-    buttonsGap: space[3],             // 12 — between stacked auth buttons
-    buttonsBottomInset: space[5],     // 20 — above the credit line
-    creditMarginTop: space[3],        // 12
-    logoTopInsetPct: 0.22,            // logo sits ~22% from top
-    titleMarginTop: space[3],         // 12
-  },
-
-  field: {
-    height: 56,
-    radius: radii.md,                 // 8
-    paddingX: space[4],               // 16
-    fontSize: 16,
-    selectedBorderColor: "#1F6FEB",
-    selectedBgColor: "#F1F6FE",
-  },
-
   // Member sign-in screen (LoginScreen) — a TEAL HERO + WHITE SHEET, matching
-  // the Home header (HEADER_SURFACE = teal[600] #0094A9). That mid-teal only
-  // gives white text ~3.6:1, so — like the header — small text never sits on
-  // the teal: the hero carries only large white display text + a white logo
-  // chip, and the whole form drops onto a white sheet where everything clears
-  // WCAG AA (dark navy text, teal[700] CTA, navy[400] field borders ≈6:1).
+  // the Home header (HEADER_SURFACE = teal[700] #027489 — the one brand teal,
+  // same hue as the CTA below). White display text clears AA on it (~5.4:1);
+  // we still keep small text off the teal — like the header — so the hero
+  // carries only large white display text + a white logo chip, and the whole
+  // form drops onto a white sheet where everything clears WCAG AA (dark navy
+  // text, teal[700] CTA, navy[400] field borders ≈6:1).
   login: {
-    bg: HEADER_SURFACE,                 // teal[600] #0094A9 — hero (lockstep w/ header)
+    bg: HEADER_SURFACE,                 // teal[700] #027489 — hero (lockstep w/ header)
     sheet: colors.white,                // form sheet — all small text rides this
-    title: colors.white,                // "Welcome" — large on teal (≥3:1)
+    title: colors.white,                // "Welcome" — large on teal (≈5.4:1, AA)
     subtitle: colors.white,             // hero subtitle — large-ish on teal
     headerLabel: colors.white,          // top "FFIE" wordmark + back chevron
     radius: radii.lg,                   // 12 — fields, buttons, footer pill
@@ -64,8 +34,8 @@ export const auth = {
       placeholder: colors.brand.navy[400], // #4F5C95 — ≈6.4:1 on white (AA)
     },
 
-    // Primary "Connect" CTA — teal[700] so the white label clears AA (≈5.45:1;
-    // the app's default #3CA9C5 fails AA for small text). Pressed → teal[800].
+    // Primary "Connect" CTA — teal[700], the same FFIE brand teal as the app's
+    // default primary action (≈5.45:1 white-on-teal, clears WCAG AA). Pressed → teal[800].
     cta: {
       height: 56,
       bg: colors.brand.teal[700],         // #027489
@@ -94,43 +64,6 @@ export const auth = {
       noteText: colors.brand.navy[700],   // #222D5D — ≈10:1 on teal
       markBg: colors.white,               // FFB mark already sits on white
     },
-  },
-
-  spacing: {
-    titleToSubtitle: space[2],        // 8
-    subtitleToField: space[5],        // 20 — generous "calm" gap
-    fieldToButton: space[16],         // 64 — pushes Continue down toward keyboard
-    sectionGap: space[5],             // 20
-  },
-
-  otp: {
-    dotSize: 52,
-    dotGap: space[2],                 // 8
-    dotInactiveBg: "#EEF1F6",
-    dotActiveBg: "#DEEBFD",
-    dotCurrentBg: "#A8C9F5",
-    dotInactiveBorder: "transparent",
-    dotActiveBorder: "transparent",
-    dotDigitColor: "#2B6CD9",
-    dotDigitFontSize: 20,
-    dotDigitFontWeight: "600" as const,
-    resendMarginTop: space[4],        // 16
-  },
-
-  keypad: {
-    keyHeight: 48,
-    keyRadius: 10,
-    keyBg: "#FBFCFE",
-    keyBorderColor: "#E6EAF1",
-    keyGap: space[2],                 // 8
-    rowGap: space[2],                 // 8
-    digitFontSize: 26,
-    digitFontWeight: "400" as const,
-    lettersFontSize: 9,
-    lettersLetterSpacing: 1.4,
-    keypadPaddingX: space[3],         // 12
-    keypadPaddingTop: space[4],        // 16
-    keypadPaddingBottom: space[3],    // 12
   },
 } as const;
 

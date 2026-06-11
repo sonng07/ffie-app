@@ -38,9 +38,10 @@ import { type MemberProfile } from "@/data/member";
 
 // --- fixed brand-surface colors (teal hero) -------------------------------
 const WHITE = primitives.colors.white;
-// Status / join pill: a SOLID light chip with deep-teal text. The header teal
-// only gives ~3.6:1 with white, so white-on-teal pill text would fail AA for
-// the small (13px) label. A white chip with teal[800] text lands ~7:1 (AAA).
+// Status / join pill: a SOLID light chip with deep-teal text. A white chip with
+// teal[800] text lands ~7:1 (AAA) — stronger emphasis than white-on-teal, and
+// it stays robust no matter how the header teal shifts. (The 13px label is the
+// binding case: small text needs 4.5:1, so the chip carries it, not the teal.)
 const PILL_BG = WHITE;
 const PILL_TEXT = primitives.colors.brand.teal[800]; // #045764 — AAA on white
 const PILL_ICON = primitives.colors.brand.teal[700]; // #027489 — reads on white

@@ -57,10 +57,10 @@ import { ralewayFamily, displayFamily } from "@/theme/fonts";
 const t = themes.light;
 const GUTTER = semantics.spacing.gutter.mobile; // 16 — same as the Join directory
 const RADIUS = primitives.radii.lg; // 12 — fields, rows, buttons, map card
-const TEAL = t.brand.accent; // #0094A9 — selection highlight (radio / borders)
+const TEAL = t.brand.accent; // #027489 — selection highlight (radio / borders); now the same brand teal as the CTA below
 const TEAL_TINT = primitives.colors.brand.teal[50]; // #E6F8FB — selected-row fill
-// Continue CTA uses teal[700] so its white label clears WCAG AA (≈5.4:1); the
-// app's default #3CA9C5 fails AA for the small bold label.
+// Continue CTA uses teal[700] — the FFIE brand teal, matching the app's default
+// primary action (≈5.4:1 white-on-teal, clears WCAG AA).
 const CTA_BG = primitives.colors.brand.teal[700]; // #027489
 const CTA_PRESSED = primitives.colors.brand.teal[800]; // #045764
 
