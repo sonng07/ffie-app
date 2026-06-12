@@ -47,6 +47,17 @@ export type Article = {
   attachments?: ArticleAttachment[]; // documents vers lesquels l'article renvoie (NEWS-02)
 };
 
+// Format d'image standard des actualités (FFIE-15) — défini UNE seule fois et
+// appliqué partout où un visuel d'article s'affiche : le fil (ArticleCard), le
+// rail « Actualités récentes » de l'Accueil (RecentNews) et l'en-tête du lecteur
+// (NewsArticleScreen). Recommandation client : 16:9. Comme RemoteImage rend à
+// `width` × `aspectRatio`, l'image se met à l'échelle proportionnellement, sans
+// recadrage ni déformation, quel que soit l'écran. `NEWS_IMAGE_PIXELS` ne fixe que
+// la résolution demandée au placeholder/CMS (le même ratio à plus haute densité).
+// Validation côté éditeurs (upload) : à documenter dans le design system.
+export const NEWS_IMAGE_ASPECT_RATIO = 16 / 9;
+export const NEWS_IMAGE_PIXELS = { width: 1280, height: 720 } as const;
+
 // Le contenu reproduit les articles d'actualité FFIE en ligne, repris de la
 // page détail de chaque article (titres/dates en français, corps tels que
 // fournis par la FFIE — un mélange FR/EN). L'article n°1 est l'élément vedette /

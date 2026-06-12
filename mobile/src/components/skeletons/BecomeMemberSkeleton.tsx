@@ -1,8 +1,9 @@
 // BecomeMemberSkeleton — espace réservé de chargement pour BecomeMemberScreen (Adhérer à
 // la FFIE). Le reflète : le titre 34pt + sous-titre, le champ de recherche, la carte
 // d'annuaire groupée de lignes de fédération (zone + nom + chevron, séparées par une fine
-// ligne), la légende « affichage de X sur Y », et la note d'éligibilité. Utilise la propre
-// constante de marge supérieure de l'écran pour que le titre atterrisse au même endroit.
+// ligne), la légende « affichage de X sur Y », la note d'éligibilité et le lien « Conditions
+// d'utilisation » (FFIE-18). Utilise la propre constante de marge supérieure de l'écran pour
+// que le titre atterrisse au même endroit.
 
 import React from "react";
 import { Platform, ScrollView, StyleSheet, View } from "react-native";
@@ -107,6 +108,11 @@ export function BecomeMemberSkeleton({ themeName = "light" }: { themeName?: Them
           {/* Note d'éligibilité */}
           <View style={{ paddingHorizontal: GUTTER }}>
             <SkeletonBlock width="100%" height={92} radius={primitives.radii.md} themeName={themeName} />
+          </View>
+
+          {/* Lien « Conditions d'utilisation » centré (FFIE-18). */}
+          <View style={{ alignItems: "center", marginTop: 16 }}>
+            <SkeletonTextLine width={150} height={13} themeName={themeName} />
           </View>
         </ScrollView>
       </SkeletonGroup>

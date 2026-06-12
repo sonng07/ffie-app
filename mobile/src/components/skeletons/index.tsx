@@ -37,6 +37,10 @@ export function skeletonForTab(tab: TabKey, themeName: ThemeName): React.ReactNo
       return <ProfileSkeleton themeName={themeName} />;
     case "discover":
       return <DiscoverSkeleton themeName={themeName} />;
+    case "join":
+      // Onglet-action invité (ouvre la modale d'adhésion) : il ne devient jamais
+      // l'onglet actif, donc aucun squelette ne s'affiche. Présent pour la symétrie.
+      return null;
   }
 }
 

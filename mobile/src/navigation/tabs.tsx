@@ -1,39 +1,44 @@
 // Tables de configuration des onglets.
 //
-// Ordre de la barre du bas (les deux rôles) : Accueil · Actualités · Documents · Partenaires · Métiers.
-// (« Documents » est le libellé de la barre du bas pour la clé `library` — l'écran
-// reste la Bibliothèque, DocLibraryScreen ; seul le libellé de l'onglet a été raccourci.)
+// Ordre de la barre du bas — fixé par le retour client FFIE-05 :
+//   Adhérent : Accueil · Actus · Docs · Outils · Partenaires · Profil   (6 onglets)
+//   Invité   : Accueil · Actus · Docs · Outils · Partenaires            (5 onglets)
+// Les libellés de la barre du bas sont les formes courtes demandées par le client
+// (« Actus », « Docs ») ; le grand titre de chaque écran (AppHeader → TAB_TITLE
+// dans App.tsx) garde sa forme longue (« Actualités », « Bibliothèque »).
 //
 // Onglets adhérent (Adhérent — Julien) :
 //   Accueil      · la surface d'atterrissage — premier onglet, ouverture ici au lancement
-//   Actualités   · actualités du secteur + de la fédération
-//   Documents    · pilier — consultations quotidiennes sur chantier (Bibliothèque, clé « library »)
+//   Actus        · actualités du secteur + de la fédération (Actualités)
+//   Docs         · pilier — consultations quotidiennes sur chantier (Bibliothèque, clé « library »)
+//   Outils       · calculateurs + outils métier (clé « discover » → segment Outils)
 //   Partenaires  · l'annuaire des partenaires de la fédération (PartnersScreen). Les
 //                  segments « Mission & valeurs » / « Organisation » sont masqués en
 //                  Phase 1 — voir SHOW_FEDERATION_SEGMENTS dans PartnersScreen.tsx.
-//   Métiers      · carrières, formations, ressources externes (Métiers)
+//   Profil       · compte / qualifications / réglages (ProfileScreen). Promu en onglet
+//                  de la barre du bas par FFIE-14 (auparavant accessible uniquement via
+//                  l'avatar de l'en-tête). Réservé aux adhérents.
 //
 // Onglets invité (Entreprise non adhérente + Grand public) :
-//   Accueil · Actualités · Documents · Partenaires · Métiers
-//
-// Accueil / Actualités / Bibliothèque / Partenaires / Métiers sont partagés entre les
-// deux rôles. Deux éléments vivent EN DEHORS de la barre du bas sous forme d'avatars
-// flottants en haut à droite (AdhererButton) :
-//   - Invités  : « Adhérer » → annuaire des fédérations (BecomeMemberScreen) en modale.
-//   - Adhérents : Profil → la page de compte/réglages (la clé d'onglet « profile » est
-//     conservée pour que l'avatar puisse y router ; elle n'a simplement pas d'entrée dans la barre du bas).
+//   Accueil · Actus · Docs · Outils · Partenaires · Adhérer
+//   (pas de Profil : les invités n'ont pas de compte. « Adhérer » est désormais un
+//   onglet-ACTION en dernière position — symétrique du Profil adhérent : au lieu de
+//   basculer vers un écran de contenu, son appui ouvre l'annuaire des fédérations
+//   (BecomeMemberScreen) en modale. Il ne devient jamais l'onglet « actif ». Il
+//   remplace l'ancien bouton « Adhérer » de l'en-tête, désormais retiré.)
 //
 // Note : la clé d'onglet « partners » route vers PartnersScreen ; son libellé affiche
-// « Partenaires », ce qui correspond au grand titre de l'écran et à son unique segment
-// visible maintenant que les segments de fédération sont masqués.
+// « Partenaires », ce qui correspond au grand titre de l'écran. La clé « discover »
+// porte le libellé « Outils » (son segment par défaut).
 
 import type { ComponentType } from "react";
-import { BookOpen, Compass, Home, Newspaper, Handshake } from "lucide-react-native";
+import { BookOpen, Compass, Home, Newspaper, Handshake, User, UserPlus } from "lucide-react-native";
 import type { LucideIcon } from "lucide-react-native";
 import type { Access } from "@/auth/roleContext";
 
 export type MemberTabKey = "home" | "library" | "news" | "partners" | "discover" | "profile";
-export type GuestTabKey = "home" | "discover" | "news" | "partners" | "library";
+// « join » est un onglet-action invité (ouvre la modale d'adhésion), pas une destination.
+export type GuestTabKey = "home" | "discover" | "news" | "partners" | "library" | "join";
 
 export type TabKey = MemberTabKey | GuestTabKey;
 
@@ -42,29 +47,50 @@ export type TabConfig<K extends TabKey = TabKey> = {
   label: string;
   icon: LucideIcon;
   access: Access;
+  /** Sémantique d'accessibilité. Par défaut « tab » (une destination sélectionnable).
+   *  Mettre « button » pour un onglet-ACTION (ex. « Adhérer ») qui déclenche une
+   *  action / ouvre une modale au lieu de devenir l'onglet actif : il s'annonce alors
+   *  comme un bouton, sans état « sélectionné » (WCAG 4.1.2 nom/rôle/valeur). */
+  role?: "tab" | "button";
+  /** Indice d'accessibilité optionnel — surtout utile pour les onglets-action. */
+  accessibilityHint?: string;
 };
 
 export const MEMBER_TABS: ReadonlyArray<TabConfig<MemberTabKey>> = [
   { key: "home", label: "Accueil", icon: Home, access: "public" },
-  { key: "news", label: "Actualités", icon: Newspaper, access: "public" },
-  { key: "library", label: "Documents", icon: BookOpen, access: "member-only" },
-  { key: "partners", label: "Partenaires", icon: Handshake, access: "public" },
+  { key: "news", label: "Actus", icon: Newspaper, access: "public" },
+  { key: "library", label: "Docs", icon: BookOpen, access: "member-only" },
   // Onglet « discover » — libellé « Outils » (le segment Métiers est temporairement
   // retiré ; il ne propose plus que Vidéos + Calculateurs). Voir DiscoverScreen.
   { key: "discover", label: "Outils", icon: Compass, access: "public" },
-  // Le Profil n'est volontairement PAS un onglet du bas — on y accède via l'avatar
-  // en haut à droite (la clé « profile » existe toujours pour cette route).
+  { key: "partners", label: "Partenaires", icon: Handshake, access: "public" },
+  // Profil — désormais un onglet du bas (FFIE-14), en dernière position. Réservé aux
+  // adhérents (la coquille adhérent est déjà sous RequireRole). L'avatar de l'en-tête
+  // y route toujours.
+  { key: "profile", label: "Profil", icon: User, access: "member-only" },
 ];
 
 export const GUEST_TABS: ReadonlyArray<TabConfig<GuestTabKey>> = [
   { key: "home", label: "Accueil", icon: Home, access: "public" },
-  { key: "news", label: "Actualités", icon: Newspaper, access: "public" },
+  { key: "news", label: "Actus", icon: Newspaper, access: "public" },
   // La Bibliothèque + les Métiers font désormais aussi partie de l'expérience invité. La
   // Bibliothèque est marquée publique ici parce que la coquille invité l'héberge
   // directement (pas de barrière RequireRole) — les non-adhérents parcourent le même annuaire.
-  { key: "library", label: "Documents", icon: BookOpen, access: "public" },
-  { key: "partners", label: "Partenaires", icon: Handshake, access: "public" },
+  { key: "library", label: "Docs", icon: BookOpen, access: "public" },
   { key: "discover", label: "Outils", icon: Compass, access: "public" },
+  { key: "partners", label: "Partenaires", icon: Handshake, access: "public" },
+  // Onglet-action « Adhérer » (dernière position, symétrique du Profil adhérent).
+  // Son appui ouvre l'annuaire d'adhésion en modale au lieu de basculer d'onglet —
+  // voir GuestShell.handleTabSelect dans App.tsx. Il ne s'affiche jamais comme actif,
+  // d'où role:"button" (il s'annonce comme un bouton, pas un onglet sélectionnable).
+  {
+    key: "join",
+    label: "Adhérer",
+    icon: UserPlus,
+    access: "public",
+    role: "button",
+    accessibilityHint: "Ouvre les informations d'adhésion",
+  },
 ];
 
 // Évite de re-typer dans les rendus qui se moquent de la navigation de quel rôle ils affichent.

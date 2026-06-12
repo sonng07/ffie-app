@@ -15,7 +15,11 @@ import { primitives, themes, type ThemeName } from "@tokens";
 import { ralewayFamily, displayFamily } from "@/theme/fonts";
 import { GUTTER, useGroupedColors } from "@/components/ui/ios";
 import { RemoteImage } from "@/components/ui/RemoteImage";
-import type { Article } from "@/data/news";
+import {
+  NEWS_IMAGE_ASPECT_RATIO,
+  NEWS_IMAGE_PIXELS,
+  type Article,
+} from "@/data/news";
 
 export function NewsArticleScreen({
   article,
@@ -106,14 +110,16 @@ export function NewsArticleScreen({
       </View>
 
       <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
-        {/* Image hero — espace réservé avec graine (remplacer par une vraie image CMS plus tard) */}
+        {/* Image hero — au format d'actualité standard 16:9 (FFIE-15) plutôt qu'une
+            hauteur fixe : l'image se met à l'échelle proportionnellement, sans
+            recadrage. Espace réservé avec graine (remplacer par une vraie image CMS plus tard). */}
         <RemoteImage
           seed={`ffie-news-${article.id}`}
           uri={article.imageUrl}
           width="100%"
-          height={210}
-          pixelWidth={1000}
-          pixelHeight={600}
+          aspectRatio={NEWS_IMAGE_ASPECT_RATIO}
+          pixelWidth={NEWS_IMAGE_PIXELS.width}
+          pixelHeight={NEWS_IMAGE_PIXELS.height}
           themeName={themeName}
           accessibilityLabel={`Illustration pour ${article.title}`}
         />

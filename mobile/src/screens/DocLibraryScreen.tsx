@@ -88,14 +88,108 @@ const FILTER_OPTIONS: { key: SavedFilterKey; label: string }[] = [
   { key: "not-saved", label: "Non enregistré" },
 ];
 
-// Facette Famille — la taxonomie de premier niveau du site FFIE (FFIE-DOC-04 :
-// « filtrage ... par catégorie »). Les clés SONT les noms de famille, donc une clé
-// sélectionnée se mappe directement sur le `family` de chaque document. Construite
-// à partir de l'ordre canonique de docs.ts pour que les puces s'affichent dans le
-// même ordre que le site.
-const FAMILY_OPTIONS: { key: DocFamily; label: string }[] = DOC_FAMILIES.map(
-  (f) => ({ key: f, label: f }),
-);
+// Taxonomie de filtre du site FFIE (FFIE-DOC-04) — l'arbre famille → catégorie
+// EXACTEMENT tel que la barre latérale de filtre du site public le présente
+// (ordre conservé). Chaque option est une vraie facette FFIE ; cocher une puce
+// restreint le corpus via les champs `category`/`categories` du document. Sept
+// facettes que le site liste mais qu'aucun document de l'instantané actuel ne
+// porte encore (marquées « (sans doc) ») sont incluses telles quelles pour
+// reproduire le site 1:1 — elles se peupleront à la synchro live. L'ordre des
+// familles suit DOC_FAMILIES (mêmes intitulés que les en-têtes de section de la
+// page) ; « Autres documents » n'est pas une facette du site → hors filtre.
+const DOC_FILTER_GROUPS: { family: DocFamily; options: string[] }[] = [
+  {
+    family: "Courants forts",
+    options: [
+      "CVC",
+      "Éclairage",
+      "Commande et distribution électrique",
+      "PoE / SPE",
+      "IRVE",
+      "Règles d'installation",
+      "Habilitations électriques",
+    ],
+  },
+  {
+    family: "Sûreté / Sécurité Incendie",
+    options: [
+      "Sécurité incendie",
+      "Contrôle d'accès",
+      "Vidéoprotection",
+      "Serrures connectées",
+      "Cybersécurité",
+    ],
+  },
+  {
+    family: "Vie de l'entreprise",
+    options: [
+      "Gestion des travaux",
+      "Démarche commerciale",
+      "Aides financières",
+      "Gestion de l'entreprise",
+      "Qualification",
+      "Ressources humaines / Compétences",
+      "Formations pour les électriciens",
+    ],
+  },
+  {
+    family: "Bâtiments connectés",
+    options: [
+      "Audiovisuel / Sonorisation / Antennes", // (sans doc)
+      "Pilotage du bâtiment GTB / GTC / BACS",
+      "IA Intelligence Artificielle",
+      "Réseaux de communication",
+      "Fibre optique",
+      "Supervision / Hypervision", // (sans doc)
+      "API (Interfaces de programmation)",
+      "Accessibilité /Silver Economie",
+    ],
+  },
+  {
+    family: "Performance énergétique",
+    options: [
+      "CEE",
+      "RE 2020 / RT 2012",
+      "CITE / PTZ",
+      "Autoconsommation / Stockage",
+      "Photovoltaïque PV",
+    ],
+  },
+  {
+    family: "Maintenance",
+    options: ["Gammes opératoires", "Modèle de contrat", "Fiches Maintenance"],
+  },
+  {
+    family: "Types de documents",
+    options: [
+      "JE Journal des électriciens",
+      "Mémos RH",
+      "Séries Marchés",
+      "Posters",
+      "Documents de communication",
+      "Notéco", // (sans doc)
+      "Notec", // (sans doc)
+      "Guides", // (sans doc)
+      "Collection Innov'Elec", // (sans doc)
+      "Fiches marketing", // (sans doc)
+    ],
+  },
+];
+
+// Rapproche l'intitulé d'une facette de filtre des valeurs `category`/`categories`
+// d'un document SANS dépendre d'un encodage identique au caractère près (accents,
+// apostrophe droite/courbe, espaces). Comparaison de présentation, pas de sécurité.
+const normCat = (s: string) =>
+  s
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[’']/g, "'")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+
+// L'ensemble des catégories d'un document, son intitulé principal inclus.
+const docCategorySet = (d: Doc): string[] => [d.category, ...d.categories];
 
 // Chaque section de famille s'ouvre en montrant un aperçu de SECTION_PREVIEW
 // lignes ; un « Tout afficher » par section révèle le reste de cette famille. Réglable.
@@ -391,7 +485,8 @@ export function DocLibraryScreen({
   const [query, setQuery] = useState("");
   const [filterOpen, setFilterOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState<Set<SavedFilterKey>>(new Set());
-  const [familyFilter, setFamilyFilter] = useState<Set<DocFamily>>(new Set());
+  // Catégories FFIE cochées (clés = intitulés de facette de DOC_FILTER_GROUPS).
+  const [categoryFilter, setCategoryFilter] = useState<Set<string>>(new Set());
   // Un document tapé ouvre soit son détail (accessible), soit l'incitation à
   // l'adhésion (un invité tapant un document verrouillé) — une seule surface à la
   // fois au-dessus de la liste.
@@ -437,15 +532,21 @@ export function DocLibraryScreen({
     scrollRef.current?.scrollTo({ y: 0, animated: animated && !reducedMotion });
   };
 
-  // La recherche + les filtres famille + statut restreignent le corpus (gardé dans
-  // l'ordre du site). Au sein d'une facette les puces sélectionnées sont en OU ; les
-  // facettes sont en ET (p. ex. « Maintenance » ET « Enregistré hors ligne »).
+  // La recherche + les filtres catégorie + statut restreignent le corpus (gardé
+  // dans l'ordre du site). Au sein d'une facette les puces sélectionnées sont en OU
+  // — un document passe la facette catégorie s'il porte AU MOINS une catégorie
+  // cochée ; les facettes sont en ET (p. ex. « IRVE » ET « Enregistré hors ligne »).
   const filtered = useMemo<Doc[]>(() => {
     const q = query.trim().toLowerCase();
     const hasStatusFilter = statusFilter.size > 0;
-    const hasFamilyFilter = familyFilter.size > 0;
+    // Catégories cochées normalisées une seule fois, pour une comparaison tolérante
+    // aux accents/apostrophes face aux valeurs `category`/`categories` des docs.
+    const selectedCats = categoryFilter.size > 0
+      ? new Set([...categoryFilter].map(normCat))
+      : null;
     return DOCS.filter((d) => {
-      if (hasFamilyFilter && !familyFilter.has(d.family)) return false;
+      if (selectedCats && !docCategorySet(d).some((c) => selectedCats.has(normCat(c))))
+        return false;
       const savedKey: SavedFilterKey = d.saved ? "saved" : "not-saved";
       if (hasStatusFilter && !statusFilter.has(savedKey)) return false;
       if (!q) return true;
@@ -455,12 +556,12 @@ export function DocLibraryScreen({
         d.categories.some((cat) => cat.toLowerCase().includes(q))
       );
     });
-  }, [query, statusFilter, familyFilter]);
+  }, [query, statusFilter, categoryFilter]);
 
   // Tout changement de l'ensemble des résultats replie chaque section sur son aperçu.
   useEffect(() => {
     setExpandedSections(new Set());
-  }, [query, statusFilter, familyFilter]);
+  }, [query, statusFilter, categoryFilter]);
 
   // Regroupe le corpus filtré en sections de familles, dans l'ordre canonique des
   // familles, en écartant les familles sans correspondance (pour que la recherche/le
@@ -489,7 +590,7 @@ export function DocLibraryScreen({
     if (next !== showBackToTop) setShowBackToTop(next);
   };
 
-  const activeFilterCount = statusFilter.size + familyFilter.size;
+  const activeFilterCount = statusFilter.size + categoryFilter.size;
   const cachedCount = useMemo(() => DOCS.filter((d) => d.saved).length, []);
 
   // Bascule une clé dans/hors d'un filtre à valeur d'ensemble (de façon immuable).
@@ -501,17 +602,19 @@ export function DocLibraryScreen({
       return next;
     });
 
-  // Les deux facettes empilées dans la feuille de filtre : Famille (taxonomie FFIE)
-  // puis Hors ligne (état du cache de l'appareil). Les clés sont des chaînes à la
-  // frontière de la feuille ; les ensembles typés vivent ici. La famille mène — c'est
-  // la principale façon de naviguer.
+  // Une section repliable par famille FFIE (reproduisant la barre latérale de
+  // filtre du site), chacune listant ses catégories en puces — puis la facette
+  // Hors ligne (état du cache appareil, propre à l'app, gardée en dernier). Toutes
+  // les sections famille partagent le même `categoryFilter` ; chaque section ne
+  // reçoit que le sous-ensemble coché de SES options pour que le compteur
+  // d'accordéon (et la réinitialisation) restent justes.
   const filterSections: FilterSection[] = [
-    {
-      label: "Famille",
-      options: FAMILY_OPTIONS,
-      selected: familyFilter as Set<string>,
-      onToggle: toggleIn(setFamilyFilter) as (key: string) => void,
-    },
+    ...DOC_FILTER_GROUPS.map((g) => ({
+      label: g.family,
+      options: g.options.map((o) => ({ key: o, label: o })),
+      selected: new Set(g.options.filter((o) => categoryFilter.has(o))),
+      onToggle: toggleIn(setCategoryFilter) as (key: string) => void,
+    })),
     {
       label: "Hors ligne",
       options: FILTER_OPTIONS,
@@ -763,9 +866,14 @@ export function DocLibraryScreen({
         visible={filterOpen}
         themeName={themeName}
         sections={filterSections}
+        // FFIE-13 — les groupes de filtres (une famille FFIE par groupe, puis Hors
+        // ligne) sont des accordéons repliables, fermés par défaut à chaque ouverture ;
+        // déplier un groupe révèle ses puces et la liste se restreint en direct à
+        // chaque sélection.
+        collapsibleSections
         resultCount={filtered.length}
         onReset={() => {
-          setFamilyFilter(new Set());
+          setCategoryFilter(new Set());
           setStatusFilter(new Set());
         }}
         onClose={() => setFilterOpen(false)}

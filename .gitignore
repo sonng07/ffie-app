@@ -1,6 +1,9 @@
 # Local Claude settings (not shared)
 .claude/settings.local.json
 
+# Unicorn Studio local project state (contains a projectToken — keep out of git)
+.unicorn/
+
 # OS files
 .DS_Store
 Thumbs.db

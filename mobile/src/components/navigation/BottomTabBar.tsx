@@ -93,6 +93,12 @@ function TabButton({
   const t = themes[themeName];
   const Icon = tab.icon;
 
+  // Un onglet-ACTION (role:"button", ex. « Adhérer ») ouvre une modale au lieu de
+  // devenir l'onglet actif : il s'annonce comme un bouton, SANS état « sélectionné »
+  // (sinon VoiceOver l'annoncerait comme un onglet sélectionnable qui ne l'est jamais
+  // — WCAG 4.1.2). Il ne reçoit jamais la teinte/graisse d'actif non plus.
+  const isAction = tab.role === "button";
+
   // Les barres d'onglets iOS communiquent l'onglet actif avec la TEINTE d'accent. On ajoute
   // une différence de graisse sur le libellé comme signal non chromatique (WCAG 1.4.1) pour
   // que les utilisateurs daltoniens perçoivent encore la sélection sans un point façon Material.
@@ -101,9 +107,10 @@ function TabButton({
 
   return (
     <Pressable
-      accessibilityRole="tab"
-      accessibilityState={{ selected: isActive }}
+      accessibilityRole={isAction ? "button" : "tab"}
+      accessibilityState={isAction ? undefined : { selected: isActive }}
       accessibilityLabel={tab.label}
+      accessibilityHint={tab.accessibilityHint}
       onPress={onPress}
       style={({ pressed }): ViewStyle => ({
         ...styles.tab,

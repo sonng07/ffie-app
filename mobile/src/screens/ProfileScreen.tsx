@@ -31,6 +31,7 @@ import {
   Lock,
   LogOut,
   MapPin,
+  ScrollText,
   SlidersHorizontal,
   SquarePen,
   type LucideIcon,
@@ -336,6 +337,19 @@ export function ProfileScreen({
             destructive
             showChevron={false}
             onPress={() => handlePress("signout")}
+          />
+        </InsetGroup>
+
+        {/* ---- À propos (informations légales) ------------------------ */}
+        <InsetGroup header="À propos" themeName={themeName}>
+          <InsetRow
+            leading={<LeadingIcon icon={ScrollText} color={t.text.muted} />}
+            leadingWidth={LEAD_ICON_W}
+            title="Conditions d'utilisation"
+            themeName={themeName}
+            isLast
+            accessibilityHint="Ouvre les conditions d'utilisation de l'application"
+            onPress={() => handlePress("legal")}
           />
         </InsetGroup>
 

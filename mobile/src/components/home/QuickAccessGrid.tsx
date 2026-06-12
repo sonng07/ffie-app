@@ -1,21 +1,28 @@
-// QuickAccessGrid — le bloc « Accès rapide » 2×2 en haut du hub Accueil.
+// QuickAccessGrid — le bloc « Accès rapide » en haut du hub Accueil.
 //
-// Quatre cartes de raccourci (Documents / Outils FFIE / Partenaires / Agenda)
-// qui mènent directement aux surfaces porteuses. Chacune est une carte blanche
-// surélevée avec une icône fine, un titre en gras et un descripteur discret sur
-// une ligne. Les cartes naviguent via l'union de cibles partagée `onNavigate`
-// (résolue en onglet/action par le shell) : ce bloc reste donc présentationnel
-// et piloté par les données.
+// Des cartes de raccourci qui mènent directement aux surfaces porteuses. Chacune
+// est une carte blanche surélevée avec une icône fine, un titre en gras et un
+// descripteur discret sur une ligne. Les cartes naviguent via l'union de cibles
+// partagée `onNavigate` (résolue en onglet/action par le shell) : ce bloc reste
+// donc présentationnel et piloté par les données.
 //
-// Pour modifier les raccourcis, éditez SHORTCUTS ci-dessous — l'ordre suit les
-// lignes (haut-gauche, haut-droite, bas-gauche, bas-droite).
+// La liste de raccourcis dépend du rôle (FFIE-03 / FFIE-04) :
+//   • Adhérent : Documentation · Outils FFIE · Partenaires · Agenda
+//   • Public   : Actus · Découvrir les métiers · Partenaires · Trouver un pro
+// Le public ne voit jamais les sections réservées aux adhérents (Documentation /
+// Outils). Pour modifier les raccourcis, éditez MEMBER_SHORTCUTS / GUEST_SHORTCUTS
+// ci-dessous — l'ordre suit les lignes (rangées de deux ; une carte finale isolée
+// reste à mi-largeur).
 
 import React from "react";
 import { Pressable, StyleSheet, Text, View, type ViewStyle } from "react-native";
 import {
   CalendarDays,
   FileText,
+  GraduationCap,
   Landmark,
+  MapPin,
+  Newspaper,
   Wrench,
   type LucideIcon,
 } from "lucide-react-native";
@@ -35,24 +42,47 @@ type Shortcut = {
   target: HomeNavTarget;
 };
 
-const SHORTCUTS: ReadonlyArray<Shortcut> = [
-  { key: "docs", icon: FileText, title: "Documents", subtitle: "Normes & guides", target: "docs" },
+// Raccourcis adhérent — la grille à 4 cartes de la maquette client
+// (Documentation · Outils FFIE · Partenaires · Agenda). « Trouver un pro » reste
+// accessible via la carte « Espace public » plus bas, et « Actus » via l'onglet.
+const MEMBER_SHORTCUTS: ReadonlyArray<Shortcut> = [
+  { key: "docs", icon: FileText, title: "Documentation", subtitle: "Normes & guides", target: "docs" },
   { key: "tools", icon: Wrench, title: "Outils FFIE", subtitle: "Calculs & aides", target: "tools" },
   { key: "partners", icon: Landmark, title: "Partenaires", subtitle: "Écosystème & Lab", target: "partners" },
   { key: "agenda", icon: CalendarDays, title: "Agenda", subtitle: "Événements", target: "agenda" },
 ];
 
+// Raccourcis public — la MÊME grille à 4 cartes (2×2) que les adhérents, mais
+// uniquement des fonctionnalités accessibles aux non-adhérents : aucune surface
+// réservée (ni Documentation ni Outils/calculateurs). Les quatre sont publiques —
+// Actus, Découvrir les métiers, Partenaires, Trouver un pro (FFIE-04).
+const GUEST_SHORTCUTS: ReadonlyArray<Shortcut> = [
+  { key: "news", icon: Newspaper, title: "Actus", subtitle: "Le fil d'actualités", target: "news" },
+  { key: "trades", icon: GraduationCap, title: "Découvrir les métiers", subtitle: "Métiers & formations", target: "trades" },
+  { key: "partners", icon: Landmark, title: "Partenaires", subtitle: "Écosystème & Lab", target: "partners" },
+  { key: "find-pro", icon: MapPin, title: "Trouver un pro", subtitle: "Annuaire géolocalisé", target: "find-pro" },
+];
+
 export function QuickAccessGrid({
   themeName = "light",
+  variant = "member",
   onNavigate,
 }: {
   themeName?: ThemeName;
+  /** Adhérent → grille à 4 raccourcis ; invité → 4 (uniquement des surfaces publiques). */
+  variant?: "member" | "guest";
   onNavigate?: (target: HomeNavTarget) => void;
 }) {
+  const shortcuts = variant === "member" ? MEMBER_SHORTCUTS : GUEST_SHORTCUTS;
+
   // Rendu par paires (ligne par ligne) pour que chaque ligne étire ses deux
   // cartes à la même hauteur, quelle que soit la façon dont le descripteur se
-  // répartit sur plusieurs lignes.
-  const rows: Shortcut[][] = [SHORTCUTS.slice(0, 2), SHORTCUTS.slice(2, 4)];
+  // répartit sur plusieurs lignes. Un nombre impair laisse une carte finale isolée
+  // à mi-largeur (un espaceur comble la seconde colonne), comme la grille Outils.
+  const rows: Shortcut[][] = [];
+  for (let i = 0; i < shortcuts.length; i += 2) {
+    rows.push(shortcuts.slice(i, i + 2));
+  }
 
   return (
     <View style={{ paddingHorizontal: GUTTER, rowGap: GRID_GAP }}>
@@ -66,6 +96,7 @@ export function QuickAccessGrid({
               onPress={() => onNavigate?.(item.target)}
             />
           ))}
+          {row.length === 1 ? <View style={{ flex: 1 }} /> : null}
         </View>
       ))}
     </View>

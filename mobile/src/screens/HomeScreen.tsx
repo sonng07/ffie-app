@@ -60,6 +60,7 @@ export function HomeScreen({
   onOpenNotifications,
   onOpenSearch,
   onOpenProfile,
+  onOpenFigures,
   onJoin,
   onNavigate,
 }: {
@@ -70,6 +71,8 @@ export function HomeScreen({
   onOpenSearch?: () => void;
   /** Adhérent : ouvrir la page Profil personnelle (toucher le bloc identité). */
   onOpenProfile?: () => void;
+  /** Toucher le logo FFIE → ouvrir « La FFIE en chiffres » (FFIE-02). */
+  onOpenFigures?: () => void;
   /** Invité : ouvrir le parcours d'adhésion. */
   onJoin?: () => void;
   /** Router une carte du tableau de bord vers un onglet/une action (résolu par le shell). */
@@ -123,6 +126,7 @@ export function HomeScreen({
           onPressSearch={onOpenSearch}
           onPressIdentity={onOpenProfile}
           onPressJoin={onJoin}
+          onPressFigures={onOpenFigures}
         />
 
         {/* Feuille tableau de bord — surélevée par-dessus le bleu marine avec des
@@ -143,7 +147,7 @@ export function HomeScreen({
           {/* Accès rapide — grille de raccourcis */}
           <View style={{ marginBottom: 28 }}>
             <SectionLabel title="Accès rapide" themeName={themeName} />
-            <QuickAccessGrid themeName={themeName} onNavigate={onNavigate} />
+            <QuickAccessGrid themeName={themeName} variant={variant} onNavigate={onNavigate} />
           </View>
 
           {/* Espace public — points d'entrée en dégradé + affiliation FFB */}

@@ -1,8 +1,8 @@
 // ProfileSkeleton — espace réservé de chargement pour ProfileScreen. Reflète la nouvelle
 // mise en page : le hero d'identité bleu marine (avatar rond + lignes nom/rôle/adhérent) puis
 // les cartes groupées Mon entreprise, Qualifications, Notifications push, Types d'alerte,
-// Préférences et Compte. Mêmes gouttières, rayons de carte et largeurs de visuel en tête que
-// le vrai écran pour que la substitution ne saute pas.
+// Préférences, Compte et À propos, puis la note de version centrée. Mêmes gouttières, rayons
+// de carte et largeurs de visuel en tête que le vrai écran pour que la substitution ne saute pas.
 //
 // Le hero se pose sur la surface de marque bleu marine fixe, ses espaces réservés sont donc
 // des blocs blanc translucide plats (sans scintillement) plutôt que le SkeletonBlock gris —
@@ -203,6 +203,16 @@ export function ProfileSkeleton({ themeName = "light" }: { themeName?: ThemeName
             <RowSkeleton isLast={false} themeName={themeName} />
             <RowSkeleton isLast themeName={themeName} />
           </Group>
+
+          {/* À propos — 1 ligne (Conditions d'utilisation, FFIE-18). */}
+          <Group headerWidth={70} themeName={themeName}>
+            <RowSkeleton isLast themeName={themeName} />
+          </Group>
+
+          {/* Note de version centrée (« FFIE mobile v0.7 · aperçu du design »). */}
+          <View style={{ alignItems: "center", marginTop: 4 }}>
+            <SkeletonTextLine width={170} height={11} themeName={themeName} />
+          </View>
           </View>
         </ScrollView>
       </SkeletonGroup>

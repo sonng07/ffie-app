@@ -20,7 +20,12 @@ import { ralewayFamily } from "@/theme/fonts";
 import { GUTTER } from "@/components/ui/ios";
 import { RemoteImage } from "@/components/ui/RemoteImage";
 import { CARD_SHADOW, useHomeColors } from "./homeColors";
-import { ARTICLES, type Article } from "@/data/news";
+import {
+  ARTICLES,
+  NEWS_IMAGE_ASPECT_RATIO,
+  NEWS_IMAGE_PIXELS,
+  type Article,
+} from "@/data/news";
 
 const CARD_W = 264;
 const CARD_GAP = 14;
@@ -100,9 +105,9 @@ function NewsCard({
           seed={`ffie-news-${article.id}`}
           uri={article.imageUrl}
           width="100%"
-          aspectRatio={16 / 10}
-          pixelWidth={640}
-          pixelHeight={400}
+          aspectRatio={NEWS_IMAGE_ASPECT_RATIO}
+          pixelWidth={NEWS_IMAGE_PIXELS.width}
+          pixelHeight={NEWS_IMAGE_PIXELS.height}
           themeName={themeName}
           accessibilityLabel={`Illustration pour ${article.title}`}
         />

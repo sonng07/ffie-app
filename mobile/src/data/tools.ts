@@ -22,6 +22,7 @@ import {
   ClipboardList,
   FileCheck,
   IdCard,
+  ShoppingCart,
   Sparkles,
   Sun,
   TrendingDown,
@@ -71,6 +72,17 @@ export const TOOL_SECTIONS: ReadonlyArray<ToolSection> = [
       { id: "intervention", title: "Rapport d'intervention", icon: ClipboardList, action: { type: "soon" } },
       { id: "assistant", title: "Assistant IA FFIE", icon: Sparkles, action: { type: "soon" } },
       { id: "member-card", title: "Carte des adhérents", icon: IdCard, action: { type: "soon" } },
+    ],
+  },
+  {
+    // FFIE-12 — nouveau service « Centrale d'achat ». L'icône et la destination
+    // (URL / page) doivent être fournies par le client ; en attendant, la tuile
+    // s'affiche en « Bientôt » plutôt que de feindre une destination (CLAUDE.md :
+    // aucun comportement fabriqué). Section dédiée à confirmer avec le client.
+    id: "services",
+    title: "Services",
+    tiles: [
+      { id: "purchasing", title: "Centrale d'achat", icon: ShoppingCart, action: { type: "soon" } },
     ],
   },
 ];

@@ -386,6 +386,7 @@ export function BecomeMemberScreen({
   themeName = "light",
   onClose,
   onLogin,
+  onOpenLegal,
 }: {
   themeName?: ThemeName;
   // Lorsqu'elle est ouverte en modale (depuis le bouton flottant Adhérer), un
@@ -396,6 +397,9 @@ export function BecomeMemberScreen({
   // en bas pour permettre aux adhérents existants d'accéder à la connexion
   // e-mail → OTP. Omis dans un onglet.
   onLogin?: () => void;
+  // Ouvre les conditions d'utilisation (FFIE-18) — point d'entrée légal côté
+  // invité (les invités n'ont pas d'onglet Profil). Omis dans un onglet.
+  onOpenLegal?: () => void;
 }) {
   const t = themes[themeName];
   const c = useGroupedColors(themeName);
@@ -859,6 +863,35 @@ export function BecomeMemberScreen({
               votre fédération départementale, puis examinées par la FFIE avant l'octroi de l'accès. Vous serez notifié par e-mail.
             </Text>
           </View>
+
+          {/* Lien légal (FFIE-18) — seul point d'entrée vers les conditions
+              d'utilisation côté invité (pas d'onglet Profil). */}
+          {onOpenLegal ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Conditions d'utilisation"
+              accessibilityHint="Ouvre les conditions d'utilisation de l'application"
+              onPress={onOpenLegal}
+              hitSlop={8}
+              style={({ pressed }) => ({
+                alignSelf: "center",
+                marginTop: 16,
+                paddingVertical: 6,
+                paddingHorizontal: 12,
+                opacity: pressed ? 0.6 : 1,
+              })}
+            >
+              <Text
+                style={{
+                  fontSize: 13,
+                  color: t.brand.accent,
+                  textDecorationLine: "underline",
+                }}
+              >
+                Conditions d'utilisation
+              </Text>
+            </Pressable>
+          ) : null}
         </View>
       </ScrollView>
       </View>

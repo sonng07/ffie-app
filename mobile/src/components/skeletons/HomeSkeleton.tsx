@@ -4,6 +4,11 @@
 // rail Actualités récentes), pour que la mise en page ne saute pas quand le vrai écran s'y
 // substitue. Les métriques ici suivent HomeScreen / les composants d'accueil — les garder
 // synchronisées quand la mise en page du tableau de bord change.
+//
+// Le hero se pose sur la surface de marque bleu marine fixe (HomeHeader est statique, sans
+// animation), ses espaces réservés sont donc des blocs blanc translucide PLATS (sans
+// scintillement) plutôt que le SkeletonBlock gris — même raisonnement que ProfileSkeleton. Le
+// contenu de la feuille en dessous utilise le squelette à scintillement partagé (SkeletonBlock).
 
 import React from "react";
 import { Platform, ScrollView, View } from "react-native";
@@ -13,12 +18,27 @@ import { primitives, type ThemeName } from "@tokens";
 import { GUTTER } from "@/components/ui/ios";
 import { SHEET, useHomeColors } from "@/components/home/homeColors";
 import { HEADER_SURFACE } from "@/theme/brandHeader";
-import { SkeletonBlock, SkeletonCircle, SkeletonGroup } from "@/components/ui/Skeleton";
+import { SkeletonBlock, SkeletonGroup } from "@/components/ui/Skeleton";
 
 const NAVY = HEADER_SURFACE; // correspond à la surface de HomeHeader
-const TOP_GAP = Platform.OS === "android" ? 10 : 8; // correspond à HomeHeader
+// Écart sous le bord de la zone sûre avant la rangée de marque — identique au TOP_GAP de
+// HomeHeader pour que le verrou de logo atterrisse à la même hauteur.
+const TOP_GAP = Platform.OS === "android" ? 14 : 12;
 const GRID_GAP = 12;
 const NEWS_CARD_W = 264;
+
+// Espaces réservés plats sur le hero bleu marine. Les pastilles de logo sont des boîtes
+// BLANCHES dans HomeHeader → un blanc plus opaque ; le texte (mention d'affiliation, accueil,
+// nom) est du texte blanc translucide → un voile plus discret.
+const HERO_CHIP = "rgba(255,255,255,0.55)";
+const HERO_LINE = "rgba(255,255,255,0.20)";
+
+// Pastilles de logo du verrou de co-marque (FFIE-01). Les deux logos sont rendus à la même
+// HAUTEUR (≈ 35) dans une pastille blanche de 5 px de marge → ≈ 45 px de haut ; les largeurs
+// suivent les ratios intrinsèques (FFIE ≈ 42 + marge, FFB ≈ 37 + marge).
+const CHIP_H = 45;
+const FFIE_CHIP_W = 52;
+const FFB_CHIP_W = 47;
 
 // Un espace réservé de sur-titre de section atténué (reflète les métriques de SectionLabel).
 function LabelPlaceholder({ themeName }: { themeName: ThemeName }) {
@@ -58,34 +78,35 @@ export function HomeSkeleton({ themeName = "light" }: { themeName?: ThemeName })
               backgroundColor: NAVY,
               paddingHorizontal: GUTTER,
               paddingTop: insets.top + TOP_GAP,
-              paddingBottom: 38, // correspond au paddingBottom racine de HomeHeader
+              paddingBottom: 28, // correspond au paddingBottom racine de HomeHeader
             }}
           >
-            {/* Ligne de marque : puce de logo + logotype | deux disques d'action */}
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                justifyContent: "space-between",
-                minHeight: 40,
-              }}
-            >
-              <View style={{ flexDirection: "row", alignItems: "center", columnGap: 8 }}>
-                <SkeletonBlock width={30} height={30} radius={primitives.radii.md} themeName={themeName} />
-                <SkeletonBlock width={54} height={18} radius={primitives.radii.sm} themeName={themeName} />
-              </View>
-              <View style={{ flexDirection: "row", alignItems: "center", columnGap: 6 }}>
-                <SkeletonCircle size={26} themeName={themeName} />
-                <SkeletonCircle size={26} themeName={themeName} />
-              </View>
+            {/* Rangée de marque : verrou de co-marque FFIE + FFB (deux pastilles de logo
+                blanches côte à côte). Plus aucune action en haut à droite — le Profil
+                (adhérent) et l'adhésion (invité) vivent désormais dans la barre d'onglets. */}
+            <View style={{ flexDirection: "row", alignItems: "center", columnGap: 8, minHeight: 44 }}>
+              <View style={{ width: FFIE_CHIP_W, height: CHIP_H, borderRadius: 6, backgroundColor: HERO_CHIP }} />
+              <View style={{ width: FFB_CHIP_W, height: CHIP_H, borderRadius: 6, backgroundColor: HERO_CHIP }} />
             </View>
 
-            {/* Bloc d'identité : salutation, nom, pastille — les hauteurs/marges reflètent
-                les métriques de texte de HomeHeader pour que rien ne se décale à la substitution. */}
-            <View style={{ marginTop: 18 }}>
-              <SkeletonBlock width={48} height={14} radius={primitives.radii.sm} themeName={themeName} />
-              <SkeletonBlock width={196} height={28} radius={primitives.radii.sm} themeName={themeName} style={{ marginTop: 8 }} />
-              <SkeletonBlock width={168} height={28} radius={primitives.radii.full} themeName={themeName} style={{ marginTop: 12 }} />
+            {/* Mention d'affiliation « La FFIE est membre adhérent de la FFB » — pleine
+                largeur sous le verrou de co-marque (FFIE-01). */}
+            <View style={{ width: 224, height: 12, borderRadius: 4, backgroundColor: HERO_LINE, marginTop: 12 }} />
+
+            {/* Bloc d'identité : accueil + nom + pastille — les hauteurs/marges reflètent les
+                métriques de texte de HomeHeader pour que rien ne se décale à la substitution. */}
+            <View style={{ marginTop: 14 }}>
+              <View style={{ width: 64, height: 14, borderRadius: 4, backgroundColor: HERO_LINE }} />
+              <View style={{ width: 200, height: 28, borderRadius: 5, backgroundColor: HERO_LINE, marginTop: 6 }} />
+              <View
+                style={{
+                  width: 172,
+                  height: 28,
+                  borderRadius: primitives.radii.full,
+                  backgroundColor: HERO_CHIP,
+                  marginTop: 12,
+                }}
+              />
             </View>
           </View>
 
@@ -101,7 +122,8 @@ export function HomeSkeleton({ themeName = "light" }: { themeName?: ThemeName })
               paddingBottom: SHEET.padBottom,
             }}
           >
-            {/* Accès rapide — grille 2×2 */}
+            {/* Accès rapide — grille de raccourcis à 4 tuiles (2 rangées de deux), pour les
+                deux rôles : QuickAccessGrid donne 4 cartes à l'adhérent ET à l'invité. */}
             <View style={{ marginBottom: 28 }}>
               <LabelPlaceholder themeName={themeName} />
               <View style={{ paddingHorizontal: GUTTER, rowGap: GRID_GAP }}>

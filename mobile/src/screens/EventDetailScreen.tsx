@@ -74,7 +74,7 @@ export function EventDetailScreen({
         })}
       >
         <ChevronLeft size={26} color={t.brand.accent} />
-        <Text style={{ color: t.brand.accent, fontSize: 16 }}>Événements</Text>
+        <Text style={{ color: t.brand.accent, fontSize: 16 }}>Agenda</Text>
       </Pressable>
 
       <ScrollView contentContainerStyle={{ paddingHorizontal: 24, paddingTop: 8, paddingBottom: 32 }}>

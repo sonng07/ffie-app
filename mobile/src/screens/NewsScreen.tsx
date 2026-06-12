@@ -34,7 +34,13 @@ import { GUTTER, useGroupedColors } from "@/components/ui/ios";
 import { RemoteImage } from "@/components/ui/RemoteImage";
 import { Pagination } from "@/components/ui/Pagination";
 import { LockTag } from "@/components/ui/LockTag";
-import { ARTICLES, type Article, type NewsCategory } from "@/data/news";
+import {
+  ARTICLES,
+  NEWS_IMAGE_ASPECT_RATIO,
+  NEWS_IMAGE_PIXELS,
+  type Article,
+  type NewsCategory,
+} from "@/data/news";
 import { NavigationContainer, useNavigationContainerRef, StackActions } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { canAccess, useRole } from "@/auth/roleContext";
@@ -521,9 +527,9 @@ function ArticleCard({
         seed={`ffie-news-${article.id}`}
         uri={article.imageUrl}
         width="100%"
-        aspectRatio={16 / 9}
-        pixelWidth={1200}
-        pixelHeight={675}
+        aspectRatio={NEWS_IMAGE_ASPECT_RATIO}
+        pixelWidth={NEWS_IMAGE_PIXELS.width}
+        pixelHeight={NEWS_IMAGE_PIXELS.height}
         themeName={themeName}
         accessibilityLabel={`Illustration pour ${article.title}`}
       />

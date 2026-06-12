@@ -27,7 +27,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
-import { SlidersHorizontal, X } from "lucide-react-native";
+import { ChevronDown, ChevronRight, SlidersHorizontal, X } from "lucide-react-native";
 import { themes, type ThemeName } from "@tokens";
 import { displayFamily, ralewayFamily } from "@/theme/fonts";
 import { useGroupedColors } from "@/components/ui/ios";
@@ -132,6 +132,7 @@ export function FilterSheet<K extends string>({
   options,
   selected,
   sections,
+  collapsibleSections = false,
   resultCount,
   onToggle,
   onReset,
@@ -149,6 +150,13 @@ export function FilterSheet<K extends string>({
   /** API multi-sections : empiler plusieurs groupes de puces titrés (la Bibliothèque empile
    *  « Famille » + « Hors ligne »). A priorité sur les props à section unique. */
   sections?: FilterSection[];
+  /** FFIE-13 — quand activé, chaque groupe devient un accordéon repliable, FERMÉ par
+   *  défaut à chaque ouverture de la feuille. L'en-tête affiche le nombre de filtres
+   *  actifs de son groupe quand il est fermé, pour qu'une sélection masquée reste
+   *  visible. La liste derrière la feuille se met toujours à jour à chaque appui sur
+   *  une puce (application immédiate). Par défaut false → tous les groupes restent
+   *  dépliés, comportement historique (Actualités, Partenaires). */
+  collapsibleSections?: boolean;
   resultCount: number;
   onReset: () => void;
   onClose: () => void;
@@ -176,6 +184,21 @@ export function FilterSheet<K extends string>({
   const scrimOpacity = useRef(new Animated.Value(0)).current;
   const sheetY = useRef(new Animated.Value(WINDOW_H)).current;
   const wasVisible = useRef(false);
+
+  // FFIE-13 — indices des groupes dépliés en mode accordéon. On repart « tout
+  // fermé » à chaque ouverture de la feuille (le ticket impose « fermé par
+  // défaut »). Sans effet en mode non repliable.
+  const [expandedSections, setExpandedSections] = useState<Set<number>>(new Set());
+  useEffect(() => {
+    if (visible) setExpandedSections(new Set());
+  }, [visible]);
+  const toggleSection = (index: number) =>
+    setExpandedSections((prev) => {
+      const next = new Set(prev);
+      if (next.has(index)) next.delete(index);
+      else next.add(index);
+      return next;
+    });
 
   useEffect(() => {
     const becameVisible = visible && !wasVisible.current;
@@ -293,12 +316,43 @@ export function FilterSheet<K extends string>({
                 </Pressable>
               </View>
 
-              {/* Sections : chacune est un libellé + une ligne enveloppée de puces basculables. */}
-              {resolvedSections.map((section, si) => (
+              {/* Sections : chacune est un libellé + une ligne enveloppée de puces
+                  basculables. En mode accordéon (collapsibleSections), l'en-tête
+                  devient une rangée touchable avec un chevron, fermée par défaut, et
+                  les puces ne se rendent que lorsque le groupe est déplié. */}
+              {resolvedSections.map((section, si) => {
+                const isOpen = !collapsibleSections || expandedSections.has(si);
+                const selectedCount = section.selected.size;
+                return (
                 <View key={section.label || si}>
-                  <Text style={[sheetStyles.sectionLabel, { color: t.text.muted }]}>
-                    {section.label}
-                  </Text>
+                  {collapsibleSections ? (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityState={{ expanded: isOpen }}
+                      accessibilityLabel={
+                        selectedCount > 0
+                          ? `${section.label}, ${selectedCount} filtre${selectedCount === 1 ? "" : "s"} actif${selectedCount === 1 ? "" : "s"}`
+                          : section.label
+                      }
+                      onPress={() => toggleSection(si)}
+                      style={sheetStyles.accordionHeader}
+                    >
+                      <Text style={[sheetStyles.sectionLabel, sheetStyles.accordionLabel, { color: t.text.muted }]}>
+                        {section.label}
+                        {selectedCount > 0 ? `  ·  ${selectedCount}` : ""}
+                      </Text>
+                      {isOpen ? (
+                        <ChevronDown size={18} color={t.text.muted} />
+                      ) : (
+                        <ChevronRight size={18} color={t.text.muted} />
+                      )}
+                    </Pressable>
+                  ) : (
+                    <Text style={[sheetStyles.sectionLabel, { color: t.text.muted }]}>
+                      {section.label}
+                    </Text>
+                  )}
+                  {isOpen ? (
                   <View style={sheetStyles.chipRow}>
                     {section.options.map((opt) => {
                       const isSelected = section.selected.has(opt.key);
@@ -336,8 +390,10 @@ export function FilterSheet<K extends string>({
                       );
                     })}
                   </View>
+                  ) : null}
                 </View>
-              ))}
+                );
+              })}
 
               {/* Actions */}
               <View style={sheetStyles.actionsRow}>
@@ -420,6 +476,24 @@ const sheetStyles = StyleSheet.create({
     fontWeight: "600",
     letterSpacing: 0.6,
     textTransform: "uppercase",
+  },
+  // Rangée d'en-tête d'accordéon (FFIE-13) — le libellé de section + un chevron,
+  // alignés sur la même gouttière de 24 pt que les puces. minHeight garde une
+  // cible tactile confortable. Le libellé porte déjà son propre padding/marge
+  // (accordionLabel les neutralise pour que la rangée gère l'espacement).
+  accordionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 24,
+    paddingRight: 20,
+    minHeight: 44,
+    marginTop: 8,
+  },
+  accordionLabel: {
+    paddingHorizontal: 0,
+    marginTop: 0,
+    marginBottom: 0,
   },
   chipRow: {
     paddingHorizontal: 24,

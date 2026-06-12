@@ -30,6 +30,7 @@ import {
 } from "@/data/partners";
 import { ralewayFamily } from "@/theme/fonts";
 import { HEADER_SURFACE } from "@/theme/brandHeader";
+import { FFBLogo } from "@/components/ui/FFBLogo";
 import { GUTTER, InsetGroup, useGroupedColors } from "@/components/ui/ios";
 
 // Taille de la puce de logo de marque en tête. Un peu plus grande que l'ancien
@@ -74,22 +75,28 @@ function PartnerLogoTile({ logo, themeName }: { logo: PartnerLogo; themeName: Th
         overflow: "hidden",
       }}
     >
-      <Text
-        numberOfLines={2}
-        adjustsFontSizeToFit
-        minimumFontScale={0.5}
-        style={{
-          color: logo.fg,
-          fontSize: 12.5,
-          lineHeight: 13.5,
-          textAlign: "center",
-          fontFamily: ralewayFamily("800"),
-          fontWeight: "800",
-          letterSpacing: -0.3,
-        }}
-      >
-        {logo.text}
-      </Text>
+      {logo.brand === "ffb" ? (
+        // Vrai logo FFB vectoriel (FFIE-06). FFBLogo.size = hauteur ; on le borne
+        // à l'intérieur de la tuile avec une petite marge.
+        <FFBLogo size={TILE - 16} />
+      ) : (
+        <Text
+          numberOfLines={2}
+          adjustsFontSizeToFit
+          minimumFontScale={0.5}
+          style={{
+            color: logo.fg,
+            fontSize: 12.5,
+            lineHeight: 13.5,
+            textAlign: "center",
+            fontFamily: ralewayFamily("800"),
+            fontWeight: "800",
+            letterSpacing: -0.3,
+          }}
+        >
+          {logo.text}
+        </Text>
+      )}
     </View>
   );
 }

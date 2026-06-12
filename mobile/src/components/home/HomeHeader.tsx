@@ -2,17 +2,16 @@
 //
 // Une surface de marque bleu marine profond qui remonte derrière la barre
 // d'état et porte :
-//   - le bloc-marque FFIE à gauche — la pastille du logo et un message d'accueil
-//     à côté (« Bienvenue » pour les adhérents, « Bienvenue à la FFIE » pour les
-//     invités)
-//   - les actions en haut à droite (notifications + profil) sous forme de simples
-//     boutons icône
+//   - le verrou de co-marque FFIE + FFB à gauche (FFIE-01) : les deux logos côte à
+//     côte, puis la mention « La FFIE est membre adhérent de la FFB » en dessous.
+//     Le logo FFIE est touchable → ouvre « La FFIE en chiffres » (FFIE-02).
+//   - PAS de bouton d'action en haut à droite : le Profil (adhérent) et l'adhésion
+//     (invité) vivent désormais dans la barre d'onglets du bas.
 //   - un bloc d'accueil + identité :
 //       · adhérent → « Bonjour, » + nom + une pastille « Adhérent actif · N° ____ »,
 //         tout le bloc étant cliquable pour ouvrir le Profil
-//       · invité   → le message d'accueil se place à côté du logo (ci-dessus), si
-//         bien que le bloc en dessous n'est que le sous-titre + une pastille
-//         « Adhérer à la FFIE »
+//       · invité   → un en-tête « Bienvenue à la FFIE » + le sous-titre + une
+//         pastille « Adhérer à la FFIE »
 //
 // C'est une surface de marque fixe, pas une surface de thème : le fond est
 // toujours le marine institutionnel FFIE (brand.navy[700]) avec des couleurs de
@@ -28,16 +27,12 @@
 import React from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import {
-  CheckCircle2,
-  User,
-  UserPlus,
-  type LucideIcon,
-} from "lucide-react-native";
+import { CheckCircle2, UserPlus } from "lucide-react-native";
 import { primitives, type ThemeName } from "@tokens";
 import { ralewayFamily, displayFamily } from "@/theme/fonts";
 import { GUTTER } from "@/components/ui/ios";
 import { FFIELogo } from "@/components/ui/FFIELogo";
+import { FFBLogo } from "@/components/ui/FFBLogo";
 import { HEADER_SURFACE } from "@/theme/brandHeader";
 import { type MemberProfile } from "@/data/member";
 
@@ -65,8 +60,6 @@ function withAlpha(hex: string, alpha: number): string {
 }
 
 const HELLO = withAlpha(WHITE, 0.82); // message d'accueil / sous-titre atténué sur le héros sarcelle
-const PRESS_BG = withAlpha(WHITE, 0.12); // teinte du bouton icône à l'appui
-const CIRCLE_BG = withAlpha(WHITE, 0.2); // fond au repos derrière le glyphe de profil — ancre le bord droit à la marge (reflet de la pastille blanche du logo à gauche)
 
 // Écart sous le bord supérieur de la zone sûre avant la rangée de marque. Gardé
 // identique au TOP_GAP de AppHeader pour que le logo soit à la même position
@@ -79,10 +72,13 @@ const TOP_GAP = Platform.OS === "android" ? 14 : 12;
 // que le sous-titre dégage le logo au lieu de le coller, tout en restant centré.
 const GUEST_GAP = 8;
 
-// Taille du glyphe du logo dans la pastille blanche. Agrandie depuis les 20
-// d'origine pour que la marque soit nettement lisible sur le héros marine
-// (s'applique aux variantes adhérent et invité).
-const LOGO_SIZE = 42;
+// Verrou de co-marque FFIE + FFB (FFIE-01) — les deux logos sont rendus à la
+// MÊME hauteur. Attention : les deux composants n'interprètent pas `size` de la
+// même façon — FFIELogo.size = LARGEUR (hauteur = size / 1,188) ; FFBLogo.size =
+// HAUTEUR. On choisit donc une largeur FFIE de 42 (≈ 35,4 de haut) et une hauteur
+// FFB de 35 pour que les deux pastilles s'alignent exactement à la même hauteur.
+const FFIE_LOGO_SIZE = 42; // largeur FFIE → hauteur ≈ 35,4
+const FFB_LOGO_SIZE = 35; // hauteur FFB → 35
 
 export type HomeHeaderProps = {
   themeName?: ThemeName;
@@ -100,42 +96,10 @@ export type HomeHeaderProps = {
   onPressIdentity?: () => void;
   /** Invité : toucher la pastille « Adhérer à la FFIE ». */
   onPressJoin?: () => void;
+  /** Toucher le logo FFIE → ouvrir « La FFIE en chiffres » (FFIE-02). Omettre pour
+   *  rendre le logo non interactif (simple image de marque). */
+  onPressFigures?: () => void;
 };
-
-// Un simple bouton icône de barre supérieure (glyphe blanc sur la surface de
-// marque). hitSlop élargit le disque visible de 40 pt à une cible accessible de
-// ≥ 44 pt.
-function IconButton({
-  icon: Icon,
-  label,
-  hint,
-  onPress,
-  filled = false,
-}: {
-  icon: LucideIcon;
-  label: string;
-  hint?: string;
-  onPress?: () => void;
-  /** Affiche un cercle translucide au repos derrière le glyphe (action profil). */
-  filled?: boolean;
-}) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      accessibilityHint={hint}
-      onPress={onPress}
-      hitSlop={8}
-      style={({ pressed }) => [
-        styles.iconBtn,
-        filled ? styles.iconBtnFilled : null,
-        pressed && onPress ? { backgroundColor: PRESS_BG } : null,
-      ]}
-    >
-      <Icon size={22} color={WHITE} strokeWidth={2} />
-    </Pressable>
-  );
-}
 
 export function HomeHeader({
   themeName = "light",
@@ -146,101 +110,48 @@ export function HomeHeader({
   onPressSearch,
   onPressIdentity,
   onPressJoin,
+  onPressFigures,
 }: HomeHeaderProps) {
   void themeName; // le héros marine ignore le thème ; prop conservée par symétrie d'API
   const insets = useSafeAreaInsets();
   const isMember = variant === "member" && member != null;
 
-  // La pastille du logo est plus haute que le texte d'accueil à côté, si bien que
-  // la rangée de marque dépasse d'environ une demi-pastille sous la ligne de base
-  // du texte. On mesure ce débord et on l'injecte dans la marge haute du CTA
-  // invité, pour que le sous-titre se retrouve visuellement centré entre la
-  // rangée de marque et le bouton « Adhérer à la FFIE » (écarts égaux). Mesurer
-  // vaut mieux que coder en dur car les hauteurs pastille/texte dépendent de la
-  // police et de la plateforme. Valeur par défaut raisonnable jusqu'à la première
-  // passe de mise en page.
-  const [chipOverhang, setChipOverhang] = React.useState(10);
-  const brandH = React.useRef(0);
-  const greetingH = React.useRef(0);
-  const measureOverhang = React.useCallback(() => {
-    if (brandH.current > 0 && greetingH.current > 0) {
-      setChipOverhang(Math.max(0, Math.round((brandH.current - greetingH.current) / 2)));
-    }
-  }, []);
-
   return (
     <View style={[styles.root, { paddingTop: insets.top + TOP_GAP }]}>
-      {/* Bloc-marque + actions en haut à droite */}
+      {/* Verrou de co-marque (plus aucune action en haut à droite — voir l'en-tête de fichier) */}
       <View style={styles.topRow}>
-        <View
-          style={styles.brand}
-          onLayout={(e) => {
-            brandH.current = e.nativeEvent.layout.height;
-            measureOverhang();
-          }}
-          // Adhérent : une seule étiquette « FFIE » couvre le bloc logo +
-          // logotype. Invité : le logo et le message « Bienvenue » sont
-          // étiquetés séparément.
-          accessible={isMember}
-          accessibilityRole={isMember ? "image" : undefined}
-          accessibilityLabel={isMember ? "FFIE" : undefined}
-        >
-          <View
-            style={styles.logoChip}
-            accessible={!isMember}
-            accessibilityRole={!isMember ? "image" : undefined}
-            accessibilityLabel={!isMember ? "FFIE" : undefined}
+        {/* Verrou de co-marque FFIE + FFB (FFIE-01) : les deux logos côte à côte, à
+            la MÊME hauteur, chacun dans sa pastille blanche ; la mention
+            d'affiliation est en pleine largeur sous la rangée (voir plus bas). Le
+            logo FFIE est touchable et ouvre « La FFIE en chiffres » (FFIE-02) ; le
+            logo FFB reste décoratif. Chaque pastille porte son propre libellé
+            d'accessibilité. */}
+        <View style={styles.logoLockup}>
+          <Pressable
+            onPress={onPressFigures}
+            disabled={!onPressFigures}
+            accessibilityRole={onPressFigures ? "button" : "image"}
+            accessibilityLabel="FFIE"
+            accessibilityHint={onPressFigures ? "Ouvre les chiffres clés de la FFIE" : undefined}
+            style={({ pressed }) => [
+              styles.logoChip,
+              pressed && onPressFigures ? { opacity: 0.7 } : null,
+            ]}
           >
-            <FFIELogo size={LOGO_SIZE} themeName="light" />
+            <FFIELogo size={FFIE_LOGO_SIZE} themeName="light" />
+          </Pressable>
+          <View style={styles.logoChip} accessibilityRole="image" accessibilityLabel="FFB">
+            <FFBLogo size={FFB_LOGO_SIZE} />
           </View>
-          {isMember ? (
-            // Adhérent : un bref « Bienvenue » à côté du logo (remplaçant le
-            // logotype FFIE), au-dessus de la ligne personnelle « Bonjour, {nom} ».
-            // Le bloc-marque est déjà étiqueté « FFIE », donc ce n'est pas
-            // ré-annoncé.
-            <Text
-              style={styles.brandGreeting}
-              numberOfLines={1}
-              onLayout={(e) => {
-                greetingH.current = e.nativeEvent.layout.height;
-                measureOverhang();
-              }}
-            >
-              Bienvenue
-            </Text>
-          ) : (
-            // Invité : le message d'accueil remonte à côté du logo (remplaçant le
-            // logotype) ; le bloc en dessous porte le sous-titre + le CTA
-            // d'adhésion.
-            <Text
-              style={styles.brandGreeting}
-              accessibilityRole="header"
-              numberOfLines={1}
-              onLayout={(e) => {
-                greetingH.current = e.nativeEvent.layout.height;
-                measureOverhang();
-              }}
-            >
-              Bienvenue à la FFIE
-            </Text>
-          )}
         </View>
-
-        <View style={styles.actions}>
-          {/* Profil : ouvre le profil de l'adhérent (même destination que le bloc
-              d'identité cliquable ci-dessous), à l'image de l'action profil de
-              AppHeader. */}
-          {isMember && onPressIdentity ? (
-            <IconButton
-              icon={User}
-              label="Mon profil"
-              hint="Ouvre votre profil et vos réglages"
-              onPress={onPressIdentity}
-              filled
-            />
-          ) : null}
-        </View>
+        {/* Plus de bouton d'action en haut à droite : le Profil (adhérent) vit
+            désormais dans la barre d'onglets du bas. Le bloc d'identité plus bas
+            reste cliquable pour ouvrir le Profil (raccourci, pas un bouton de coin). */}
       </View>
+
+      {/* Mention d'affiliation FFB (FFIE-01) — pleine largeur sous le verrou de
+          co-marque, à l'image de la carte « membre de la FFB » plus bas dans le hub. */}
+      <Text style={styles.affiliation}>La FFIE est membre adhérent de la FFB</Text>
 
       {/* Identité / message d'accueil */}
       {isMember ? (
@@ -268,6 +179,12 @@ export function HomeHeader({
         </Pressable>
       ) : (
         <View style={[styles.identity, styles.identityGuest]}>
+          {/* Le message « Bienvenue à la FFIE » vit désormais ici (il était
+              auparavant en ligne à côté du logo, place reprise par le verrou de
+              co-marque FFIE + FFB). */}
+          <Text style={styles.guestWelcome} accessibilityRole="header" numberOfLines={1}>
+            Bienvenue à la FFIE
+          </Text>
           <Text style={styles.subtitle}>
             Explorez les actualités, les ressources et les avantages adhérents.
           </Text>
@@ -279,12 +196,7 @@ export function HomeHeader({
               accessibilityHint="Ouvre les informations d'adhésion"
               style={({ pressed }) => [
                 styles.pill,
-                // Écart bas = débord de la pastille + le même décalage d'air
-                // appliqué au-dessus du sous-titre (identityGuest). Ainsi le
-                // sous-titre est visuellement centré entre la ligne « Bienvenue »
-                // et ce CTA, tout en dégageant la pastille du logo plutôt que de
-                // la coller.
-                { marginTop: chipOverhang + GUEST_GAP },
+                { marginTop: 14 },
                 pressed ? { opacity: 0.85 } : null,
               ]}
             >
@@ -317,13 +229,12 @@ const styles = StyleSheet.create({
     // logo (désormais plus grande).
     minHeight: 44,
   },
-  brand: {
+  // Verrou de co-marque — les deux pastilles de logo côte à côte. flexShrink pour
+  // que la rangée cède la place à l'action de profil plutôt que de la pousser hors champ.
+  logoLockup: {
     flexDirection: "row",
     alignItems: "center",
-    columnGap: 10,
-    // Laisse le bloc-marque se rétrécir pour que le message d'accueil invité se
-    // tronque avant d'entrer en collision avec le bouton de recherche, au lieu
-    // de le pousser hors écran.
+    columnGap: 8,
     flexShrink: 1,
   },
   logoChip: {
@@ -331,36 +242,27 @@ const styles = StyleSheet.create({
     borderRadius: 6, // entre radii.sm (4) et radii.md (8) — pas de token exact
     padding: 5,
   },
-  // Message d'accueil à côté du logo dans la rangée de marque — « Bienvenue »
-  // (adhérent) ou « Bienvenue à la FFIE » (invité). Une phrase : elle utilise
-  // donc l'interlettrage resserré d'un titre plutôt que l'interlettrage large
-  // d'un logotype.
-  brandGreeting: {
+  // Mention d'affiliation FFB sous le verrou de co-marque (FFIE-01). Reprend le
+  // traitement « texte atténué sur le héros » du sous-titre invité.
+  affiliation: {
+    color: HELLO,
+    fontFamily: ralewayFamily("500"),
+    fontWeight: "500",
+    fontSize: 12.5,
+    lineHeight: 17,
+    letterSpacing: 0.1,
+    marginTop: 10,
+  },
+  // En-tête « Bienvenue à la FFIE » de la variante invité — désormais dans le bloc
+  // d'identité (la rangée de marque porte le verrou de co-marque à la place).
+  guestWelcome: {
     color: WHITE,
     fontFamily: displayFamily("700"),
     fontWeight: "700",
-    fontSize: 17,
-    letterSpacing: -0.2,
-    flexShrink: 1,
-  },
-  actions: {
-    flexDirection: "row",
-    alignItems: "center",
-    columnGap: 2,
-    // Pas de marge négative : l'action de fin est un cercle plein, donc son bord
-    // extérieur doit s'aligner sur la marge de page — à l'image de la pastille du
-    // logo à gauche — pour un rembourrage gauche/droite symétrique.
-    marginRight: 0,
-  },
-  iconBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: primitives.radii.full,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  iconBtnFilled: {
-    backgroundColor: CIRCLE_BG,
+    fontSize: 20,
+    lineHeight: 25,
+    letterSpacing: -0.3,
+    marginBottom: 3,
   },
   identity: {
     marginTop: 14,

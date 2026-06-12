@@ -33,6 +33,11 @@ export type PartnerLogo = {
   fg: string;
   text: string;
   outlined?: boolean;
+  // Quand défini, la tuile rend le vrai logo vectoriel embarqué au lieu du
+  // wordmark de substitution (`text`). « ffb » → composant FFBLogo. `text`/`bg`
+  // restent le repli. Étendre cette union au fur et à mesure que de vrais logos
+  // de partenaires arrivent (FFIE-06).
+  brand?: "ffb";
 };
 
 export type PartnerEntry = {
@@ -123,7 +128,9 @@ export const PARTNER_TABS: PartnerTab[] = [
             id: "ffb",
             name: "FFB",
             descriptor: "Fédération Française du Bâtiment",
-            logo: { bg: "#FFFFFF", fg: "#14387F", text: "FFB", outlined: true },
+            // Vrai logo FFB (asset embarqué, le même que l'en-tête Accueil + le
+            // pied de connexion) plutôt que le wordmark de substitution.
+            logo: { bg: "#FFFFFF", fg: "#14387F", text: "FFB", outlined: true, brand: "ffb" },
             url: "https://www.ffbatiment.fr/",
           },
         ],
@@ -133,17 +140,28 @@ export const PARTNER_TABS: PartnerTab[] = [
   {
     key: "lab",
     label: "Lab_FFIE",
+    // FFIE-07 — CONSUEL et QUALIFELEC ne doivent PAS apparaître identiques ni
+    // regroupés. Chacun a donc sa propre section (carte distincte + en-tête
+    // distinct), en plus de sa couleur d'identité de marque distincte (CONSUEL
+    // bleu marine, QUALIFELEC rouge). Les deux signaux — la séparation
+    // structurelle et la couleur — les différencient sans s'appuyer sur la seule
+    // couleur (P4).
     groups: [
       {
-        header: "Qualité et conformité",
+        header: "Conformité des installations",
         entries: [
           {
             id: "consuel",
             name: "CONSUEL",
-            descriptor: "Conformité des installations",
+            descriptor: "Attestation de conformité des installations électriques",
             logo: { bg: "#1B2A52", fg: "#FFFFFF", text: "Consuel" },
             url: "https://www.consuel.com/",
           },
+        ],
+      },
+      {
+        header: "Qualification des entreprises",
+        entries: [
           {
             id: "qualifelec",
             name: "QUALIFELEC",
@@ -161,7 +179,9 @@ export const PARTNER_TABS: PartnerTab[] = [
   },
   {
     key: "partners",
-    label: "Partenaires",
+    // FFIE-08 — le client nomme ce segment « Partenaires FFIE » (le contrôle
+    // segmenté rétrécit le libellé pour le faire tenir : numberOfLines + adjustsFontSizeToFit).
+    label: "Partenaires FFIE",
     groups: [
       {
         header: "Partenaires institutionnels",

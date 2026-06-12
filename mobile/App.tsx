@@ -37,6 +37,9 @@ import { RoleProvider, roleFromOnboardingMode, useRole } from "@/auth/roleContex
 import { MembershipProvider } from "@/auth/membershipContext";
 import { MembershipApplicationFlow } from "@/screens/membership/MembershipApplicationFlow";
 import { AgendaModalScreen } from "@/screens/AgendaModalScreen";
+import { MembersMapScreen } from "@/screens/MembersMapScreen";
+import { FfieFiguresScreen } from "@/screens/FfieFiguresScreen";
+import { LegalScreen } from "@/screens/legal/LegalScreen";
 import { SignInFlow } from "@/screens/auth/SignInFlow";
 import { ActiveTabProvider, useActiveTab } from "@/navigation/activeTabContext";
 import { RequireRole } from "@/auth/RequireRole";
@@ -80,6 +83,9 @@ const TAB_TITLE: Record<TabKey, string> = {
   partners: "Partenaires",
   discover: "Outils",
   profile: "Profil",
+  // « join » est un onglet-action invité (ouvre la modale d'adhésion) ; il
+  // n'affiche jamais d'AppHeader, mais l'entrée est requise pour le Record<TabKey>.
+  join: "Adhérer",
 };
 
 type AppState =
@@ -189,6 +195,14 @@ function MemberShell({ onSignOut }: { onSignOut: () => void }) {
   // Modal Événements ("Agenda") plein écran, ouvert par le raccourci Agenda de
   // l'Accueil.
   const [agendaOpen, setAgendaOpen] = useState(false);
+  // Modal « Carte des adhérents » (FFIE-16) plein écran, ouvert par le raccourci
+  // « Trouver un pro » de l'Accueil.
+  const [membersMapOpen, setMembersMapOpen] = useState(false);
+  // Modal « La FFIE en chiffres » (FFIE-02), ouvert en touchant le logo FFIE de l'Accueil.
+  const [figuresOpen, setFiguresOpen] = useState(false);
+  // Modal « Conditions d'utilisation » (FFIE-18), ouvert depuis la rangée
+  // « Conditions d'utilisation » du Profil.
+  const [legalOpen, setLegalOpen] = useState(false);
   // Incrémenté à chaque fois que l'onglet déjà actif est ré-appuyé, pour qu'un
   // écran posé sur une sous-vue (p. ex. Actualités affichant un article,
   // Bibliothèque affichant un document) puisse revenir à sa racine. Passer à un
@@ -233,6 +247,7 @@ function MemberShell({ onSignOut }: { onSignOut: () => void }) {
   const handleProfileRowPress = (rowKey: string) => {
     if (rowKey === "signout") return onSignOut();
     if (rowKey === "notifications") setSettingsOverlay("notifications");
+    if (rowKey === "legal") setLegalOpen(true);
     // Les autres rangées du Profil (région, centres d'intérêt, modifier le
     // profil, changer le mot de passe) sont encore des stubs ; les bascules de
     // notification sont désormais gérées dans l'écran lui-même.
@@ -264,11 +279,8 @@ function MemberShell({ onSignOut }: { onSignOut: () => void }) {
               // TODO : ouvrir la recherche globale quand la surface de recherche
               // arrivera.
             }}
-            // Le Profil a désormais son propre onglet + en-tête bleu marine,
-            // donc l'action profil de l'en-tête y navigue toujours (cet en-tête
-            // ne s'affiche jamais SUR l'onglet profil — voir la garde
-            // ci-dessus).
-            onPressProfile={() => setActiveTab("profile")}
+            // Le bouton profil de l'en-tête a été retiré : le Profil vit désormais
+            // uniquement dans la barre d'onglets du bas (onglet « Profil »).
           />
         ) : null}
 
@@ -284,6 +296,7 @@ function MemberShell({ onSignOut }: { onSignOut: () => void }) {
             {renderMemberTab(activeTab, {
               onProfileRowPress: handleProfileRowPress,
               onOpenProfile: () => setActiveTab("profile"),
+              onOpenFigures: () => setFiguresOpen(true),
               onOpenSearch: () => {
                 // TODO : ouvrir la recherche globale quand la surface de
                 // recherche arrivera.
@@ -291,6 +304,8 @@ function MemberShell({ onSignOut }: { onSignOut: () => void }) {
               onHomeNavigate: (target) => {
                 // Agenda ouvre le modal Événements plein écran (pas un onglet).
                 if (target === "agenda") return setAgendaOpen(true);
+                // "Trouver un pro" ouvre la Carte des adhérents plein écran (FFIE-16).
+                if (target === "find-pro") return setMembersMapOpen(true);
                 // "tools" ouvre le segment Outils (les calculateurs y vivent) ;
                 // "trades" ouvre le segment carrières.
                 setTradesSegment(
@@ -303,7 +318,6 @@ function MemberShell({ onSignOut }: { onSignOut: () => void }) {
                   tools: "discover", // Onglet Découvrir → segment Outils
                   trades: "discover", // Onglet Découvrir → segment Métiers
                   partners: "partners",
-                  "find-pro": "partners",
                   news: "news",
                 };
                 const next = map[target];
@@ -365,6 +379,50 @@ function MemberShell({ onSignOut }: { onSignOut: () => void }) {
             />
           </SafeAreaProvider>
         </Modal>
+
+        {/* Carte des adhérents (FFIE-16) plein écran — ouverte par le raccourci
+            « Trouver un pro ». SafeAreaProvider neuf (fix du cumul d'inset). */}
+        <Modal
+          visible={membersMapOpen}
+          animationType="slide"
+          presentationStyle="fullScreen"
+          onRequestClose={() => setMembersMapOpen(false)}
+        >
+          <SafeAreaProvider>
+            <MembersMapScreen
+              themeName={themeName}
+              onClose={() => setMembersMapOpen(false)}
+            />
+          </SafeAreaProvider>
+        </Modal>
+
+        {/* Modal « La FFIE en chiffres » (FFIE-02) plein écran — ouvert en touchant
+            le logo FFIE de l'en-tête Accueil. SafeAreaProvider neuf (correctif de
+            cumul d'inset). */}
+        <Modal
+          visible={figuresOpen}
+          animationType="slide"
+          presentationStyle="fullScreen"
+          onRequestClose={() => setFiguresOpen(false)}
+        >
+          <SafeAreaProvider>
+            <FfieFiguresScreen themeName={themeName} onClose={() => setFiguresOpen(false)} />
+          </SafeAreaProvider>
+        </Modal>
+
+        {/* Modal « Conditions d'utilisation » (FFIE-18) plein écran — ouvert
+            depuis la rangée À propos du Profil. SafeAreaProvider neuf (correctif
+            de cumul d'inset). */}
+        <Modal
+          visible={legalOpen}
+          animationType="slide"
+          presentationStyle="fullScreen"
+          onRequestClose={() => setLegalOpen(false)}
+        >
+          <SafeAreaProvider>
+            <LegalScreen themeName={themeName} onClose={() => setLegalOpen(false)} />
+          </SafeAreaProvider>
+        </Modal>
       </View>
     </RequireRole>
   );
@@ -375,6 +433,7 @@ function renderMemberTab(
   actions: {
     onProfileRowPress: (rowKey: string) => void;
     onOpenProfile: () => void;
+    onOpenFigures: () => void;
     onOpenSearch: () => void;
     onHomeNavigate: (target: HomeNavTarget) => void;
     tradesSegment: "trades" | "tools" | "videos" | null;
@@ -389,6 +448,7 @@ function renderMemberTab(
           themeName={themeName}
           onOpenNotifications={() => actions.onProfileRowPress("notifications")}
           onOpenProfile={actions.onOpenProfile}
+          onOpenFigures={actions.onOpenFigures}
           onOpenSearch={actions.onOpenSearch}
           onNavigate={actions.onHomeNavigate}
         />
@@ -449,6 +509,16 @@ function GuestShell() {
   // Modal Événements ("Agenda") plein écran, ouvert par le raccourci Agenda de
   // l'Accueil.
   const [agendaOpen, setAgendaOpen] = useState(false);
+  // Modal « Carte des adhérents » (FFIE-16) plein écran, ouvert par le raccourci
+  // « Trouver un pro » de l'Accueil.
+  const [membersMapOpen, setMembersMapOpen] = useState(false);
+  // Modal « La FFIE en chiffres » (FFIE-02), ouvert en touchant le logo FFIE de l'Accueil.
+  const [figuresOpen, setFiguresOpen] = useState(false);
+  // Modal « Conditions d'utilisation » (FFIE-18), ouvert depuis le lien légal du
+  // bas de l'écran d'adhésion (BecomeMemberScreen). Imbriqué DANS le modal
+  // d'adhésion (voir plus bas) — sur iOS un modal frère à la racine ne peut pas
+  // s'afficher tant que celui de l'adhésion est ouvert.
+  const [legalOpen, setLegalOpen] = useState(false);
   // Ré-appuyer sur l'onglet actif le ramène à sa racine (p. ex. Actualités
   // affichant un article) ; changer d'onglet le réinitialise déjà en remontant
   // le gate.
@@ -473,6 +543,10 @@ function GuestShell() {
     // Un appui manuel sur un onglet ouvre toujours le segment par défaut de
     // l'onglet.
     setTradesSegment(null);
+    // « Adhérer » est un onglet-action : il ouvre l'annuaire d'adhésion en modale
+    // (l'ancien rôle du bouton « Adhérer » de l'en-tête) plutôt que de basculer
+    // vers un écran — il ne devient donc jamais l'onglet actif.
+    if (key === "join") return setBecomeMemberOpen(true);
     if (key === activeTab) setResetSignal((n) => n + 1);
     else setActiveTab(key as GuestTabKey);
   };
@@ -547,7 +621,8 @@ function GuestShell() {
             // TODO : ouvrir la recherche globale quand la surface de recherche
             // arrivera.
           }}
-          onPressJoin={() => setBecomeMemberOpen(true)}
+          // Le bouton « Adhérer » de l'en-tête a été retiré : l'adhésion vit
+          // désormais dans l'onglet-action « Adhérer » de la barre du bas.
         />
       ) : null}
 
@@ -563,16 +638,16 @@ function GuestShell() {
             onApply: goToJoin,
             onSignIn: openSignIn,
             onStartApplication: openApplication,
+            onOpenFigures: () => setFiguresOpen(true),
             onOpenSearch: () => {
               // TODO : ouvrir la recherche globale quand la surface de recherche
               // arrivera.
             },
             onHomeNavigate: (target) => {
-              // Invités : "find-pro" ouvre l'annuaire des fédérations
-              // (l'entonnoir d'adhésion) ; "agenda" ouvre le modal Événements
-              // plein écran ; le reste est associé à l'onglet invité
-              // correspondant.
-              if (target === "find-pro") return goToJoin();
+              // Invités : "find-pro" ouvre la Carte des adhérents (FFIE-16) ;
+              // "agenda" ouvre le modal Événements plein écran ; le reste est
+              // associé à l'onglet invité correspondant.
+              if (target === "find-pro") return setMembersMapOpen(true);
               if (target === "agenda") return setAgendaOpen(true);
               // "tools" ouvre le segment Outils (les calculateurs y vivent) ;
               // "trades" ouvre le segment carrières.
@@ -629,7 +704,21 @@ function GuestShell() {
             themeName={themeName}
             onClose={() => setBecomeMemberOpen(false)}
             onLogin={openSignIn}
+            onOpenLegal={() => setLegalOpen(true)}
           />
+          {/* Conditions d'utilisation (FFIE-18) — imbriquées dans le modal
+              d'adhésion pour surgir par-dessus l'annuaire (un frère à la racine
+              ne pourrait pas s'afficher tant que ce modal est ouvert). */}
+          <Modal
+            visible={legalOpen}
+            animationType="slide"
+            presentationStyle="fullScreen"
+            onRequestClose={() => setLegalOpen(false)}
+          >
+            <SafeAreaProvider>
+              <LegalScreen themeName={themeName} onClose={() => setLegalOpen(false)} />
+            </SafeAreaProvider>
+          </Modal>
           {/* Connexion imbriquée : surgit par-dessus l'annuaire ; annuler y
               ramène. Une connexion réussie appelle authenticate() (promeut vers
               adhérent). "Adhérer à la FFIE" ferme simplement la connexion —
@@ -706,6 +795,35 @@ function GuestShell() {
           />
         </SafeAreaProvider>
       </Modal>
+
+      {/* Carte des adhérents (FFIE-16) plein écran — ouverte par le raccourci
+          « Trouver un pro ». SafeAreaProvider neuf (fix du cumul d'inset). */}
+      <Modal
+        visible={membersMapOpen}
+        animationType="slide"
+        presentationStyle="fullScreen"
+        onRequestClose={() => setMembersMapOpen(false)}
+      >
+        <SafeAreaProvider>
+          <MembersMapScreen
+            themeName={themeName}
+            onClose={() => setMembersMapOpen(false)}
+          />
+        </SafeAreaProvider>
+      </Modal>
+
+      {/* Modal « La FFIE en chiffres » (FFIE-02) plein écran — ouvert en touchant
+          le logo FFIE de l'en-tête Accueil. SafeAreaProvider neuf (cumul d'inset). */}
+      <Modal
+        visible={figuresOpen}
+        animationType="slide"
+        presentationStyle="fullScreen"
+        onRequestClose={() => setFiguresOpen(false)}
+      >
+        <SafeAreaProvider>
+          <FfieFiguresScreen themeName={themeName} onClose={() => setFiguresOpen(false)} />
+        </SafeAreaProvider>
+      </Modal>
     </View>
   );
 }
@@ -716,6 +834,7 @@ function renderGuestTab(
     onApply: () => void;
     onSignIn: () => void;
     onStartApplication: () => void;
+    onOpenFigures: () => void;
     onOpenSearch: () => void;
     onHomeNavigate: (target: HomeNavTarget) => void;
     tradesSegment: "trades" | "tools" | "videos" | null;
@@ -732,6 +851,7 @@ function renderGuestTab(
         <HomeScreen
           themeName={themeName}
           onJoin={actions.onApply}
+          onOpenFigures={actions.onOpenFigures}
           onOpenSearch={actions.onOpenSearch}
           onNavigate={actions.onHomeNavigate}
         />
@@ -761,6 +881,11 @@ function renderGuestTab(
       );
     case "partners":
       return <PartnersScreen themeName={themeName} />;
+    case "join":
+      // Onglet-action : son appui ouvre la modale d'adhésion (handleTabSelect) sans
+      // changer l'onglet actif, donc ce cas n'est jamais rendu. Présent pour
+      // l'exhaustivité du type GuestTabKey.
+      return null;
     case "library":
       // La Bibliothèque fait désormais aussi partie de l'expérience invité —
       // les non-adhérents parcourent le même annuaire de documents (simulation
